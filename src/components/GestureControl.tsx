@@ -12,7 +12,6 @@ export const GestureControl: React.FC = () => {
   useEffect(() => {
     if (gestureEnabled) {
       startCamera();
-      simulateGestureDetection();
     } else {
       stopCamera();
     }
@@ -44,73 +43,15 @@ export const GestureControl: React.FC = () => {
     }
   };
 
-  const simulateGestureDetection = () => {
-    // Simulated gesture detection for demo purposes
-    // In production, this would use MediaPipe or TensorFlow.js
-    const gestures = [
-      'Right hand swipe',
-      'Left hand swipe',
-      'Closed fist',
-      'Two fingers',
-      'One finger up',
-      'Waving hand'
-    ];
 
-    // Random gesture simulation every 8-15 seconds when enabled
-    const interval = setInterval(() => {
-      if (!gestureEnabled) return;
-      
-      const randomGesture = gestures[Math.floor(Math.random() * gestures.length)];
-      processGesture(randomGesture);
-    }, Math.random() * 7000 + 8000);
-
-    return () => clearInterval(interval);
-  };
-
-  const processGesture = (gesture: string) => {
-    addCommand('gesture', gesture);
-
-    switch (gesture) {
-      case 'Right hand swipe':
-        nextSong();
-        speak('Next song');
-        break;
-      case 'Left hand swipe':
-        previousSong();
-        speak('Previous song');
-        break;
-      case 'Closed fist':
-        togglePlay();
-        speak('Playback toggled');
-        break;
-      case 'Two fingers':
-        setCurrentPanel('navigation');
-        speak('Opening navigation');
-        break;
-      case 'Both hands':
-        togglePlay();
-        speak('Playback stopped');
-        break;
-      case 'One finger up':
-        setVolume(prev => Math.min(100, prev + 10));
-        speak('Volume up');
-        break;
-      case 'One finger down':
-        setVolume(prev => Math.max(0, prev - 10));
-        speak('Volume down');
-        break;
-      case 'Waving hand':
-        speak('Voice assistant activated');
-        break;
-    }
-  };
 
   if (!gestureEnabled) {
     return (
       <div className="glass rounded-2xl p-6 h-full flex items-center justify-center">
         <div className="text-center text-muted-foreground">
           <Camera className="w-16 h-16 mx-auto mb-4 opacity-30" />
-          <p>Gesture control disabled</p>
+          <p className="text-sm">Gesture control disabled</p>
+          <p className="text-xs mt-2 opacity-70">Enable to activate camera</p>
         </div>
       </div>
     );
@@ -121,8 +62,14 @@ export const GestureControl: React.FC = () => {
       <div className="absolute top-4 left-4 z-10 glass px-3 py-1 rounded-full">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-          <span className="text-xs font-medium">LIVE</span>
+          <span className="text-xs font-medium">CAMERA ACTIVE</span>
         </div>
+      </div>
+
+      <div className="absolute bottom-4 left-4 right-4 z-10 glass px-4 py-3 rounded-xl">
+        <p className="text-xs text-muted-foreground text-center">
+          Gesture detection requires AI integration (MediaPipe/TensorFlow.js)
+        </p>
       </div>
       
       <video

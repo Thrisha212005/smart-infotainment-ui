@@ -16,7 +16,8 @@ export const VoiceControl: React.FC = () => {
 
   useEffect(() => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      console.log('Speech recognition not supported');
+      console.error('Speech recognition not supported in this browser');
+      speak('Voice control is not supported in this browser. Please use Chrome or Edge.');
       return;
     }
 
@@ -27,39 +28,67 @@ export const VoiceControl: React.FC = () => {
     recognition.interimResults = false;
     recognition.lang = 'en-US';
 
+    recognition.onstart = () => {
+      console.log('Voice recognition started');
+    };
+
     recognition.onresult = (event: any) => {
       const last = event.results.length - 1;
       const command = event.results[last][0].transcript.toLowerCase().trim();
       
+      console.log('Voice command detected:', command);
       addCommand('voice', command);
       processVoiceCommand(command);
     };
 
     recognition.onerror = (event: any) => {
       console.error('Speech recognition error:', event.error);
+      if (event.error === 'not-allowed') {
+        speak('Microphone access denied. Please allow microphone access to use voice control.');
+      } else if (event.error === 'no-speech') {
+        console.log('No speech detected, continuing to listen...');
+      }
+    };
+
+    recognition.onend = () => {
+      // Restart if voice is still enabled
+      if (voiceEnabled && recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch (e) {
+          console.log('Recognition restart delayed');
+        }
+      }
     };
 
     recognitionRef.current = recognition;
 
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          console.log('Recognition already stopped');
+        }
       }
     };
-  }, []);
+  }, [voiceEnabled]);
 
   useEffect(() => {
     if (voiceEnabled && recognitionRef.current) {
       try {
         recognitionRef.current.start();
+        speak('Voice control activated. Listening for commands.');
+        console.log('Starting voice recognition');
       } catch (e) {
-        console.error('Recognition already started');
+        console.log('Recognition start error:', e);
       }
     } else if (!voiceEnabled && recognitionRef.current) {
       try {
         recognitionRef.current.stop();
+        console.log('Stopping voice recognition');
       } catch (e) {
-        console.error('Recognition already stopped');
+        console.log('Recognition stop error:', e);
       }
     }
   }, [voiceEnabled]);
