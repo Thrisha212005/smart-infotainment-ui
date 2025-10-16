@@ -144,7 +144,13 @@ export const VoiceControl: React.FC = () => {
       commandRecognized = true;
     }
     
-    // Music commands - Play Music
+    // Music commands - Open Music Panel
+    else if (command.includes('open music') || command.includes('go to music') || command.includes('music panel')) {
+      setCurrentPanel('music');
+      speak('Opening music panel');
+      commandRecognized = true;
+    }
+    // Play Music
     else if (command.includes('play music')) {
       setCurrentPanel('music');
       if (!isPlaying) togglePlay();
@@ -183,7 +189,7 @@ export const VoiceControl: React.FC = () => {
     }
     
     // Navigation Panel
-    else if (command.includes('open navigation') || command.includes('show navigation')) {
+    else if (command.includes('open navigation') || command.includes('show navigation') || command.includes('go to navigation') || command.includes('navigation panel')) {
       setCurrentPanel('navigation');
       speak('Opening navigation panel');
       commandRecognized = true;
@@ -209,7 +215,7 @@ export const VoiceControl: React.FC = () => {
     }
     
     // Phone/Contacts Panel
-    else if (command.includes('show contacts') || command.includes('open contacts') || command.includes('phone')) {
+    else if (command.includes('show contacts') || command.includes('open contacts') || command.includes('phone') || command.includes('go to contacts') || command.includes('go to phone') || command.includes('contacts panel')) {
       setCurrentPanel('phone');
       speak('Opening contacts panel');
       commandRecognized = true;
@@ -237,7 +243,7 @@ export const VoiceControl: React.FC = () => {
     }
     
     // Climate Control Panel
-    else if (command.includes('adjust climate') || command.includes('climate control') || command.includes('open climate')) {
+    else if (command.includes('adjust climate') || command.includes('climate control') || command.includes('open climate') || command.includes('go to climate') || command.includes('climate panel')) {
       setCurrentPanel('climate');
       speak('Opening climate control panel');
       commandRecognized = true;
