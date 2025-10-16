@@ -18,20 +18,39 @@ import { VoiceControl } from '@/components/VoiceControl';
 const InfotainmentContent: React.FC = () => {
   const { currentPanel } = useInfotainment();
 
+  const getPanelAnimation = (panel: string) => {
+    switch (panel) {
+      case 'music':
+        return 'animate-fade-in';
+      case 'navigation':
+        return 'animate-slide-left';
+      case 'phone':
+        return 'animate-zoom-in';
+      case 'climate':
+        return 'animate-slide-up';
+      case 'vehicle':
+        return 'animate-zoom-in';
+      default:
+        return 'animate-fade-in';
+    }
+  };
+
   const renderPanel = () => {
+    const animation = getPanelAnimation(currentPanel);
+    
     switch (currentPanel) {
       case 'music':
-        return <MusicPanel />;
+        return <div key="music" className={animation}><MusicPanel /></div>;
       case 'navigation':
-        return <NavigationPanel />;
+        return <div key="navigation" className={animation}><NavigationPanel /></div>;
       case 'phone':
-        return <PhonePanel />;
+        return <div key="phone" className={animation}><PhonePanel /></div>;
       case 'climate':
-        return <ClimatePanel />;
+        return <div key="climate" className={animation}><ClimatePanel /></div>;
       case 'vehicle':
-        return <VehiclePanel />;
+        return <div key="vehicle" className={animation}><VehiclePanel /></div>;
       default:
-        return <Dashboard />;
+        return <div key="dashboard" className={animation}><Dashboard /></div>;
     }
   };
 
