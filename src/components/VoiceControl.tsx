@@ -141,7 +141,7 @@ export const VoiceControl: React.FC = () => {
       });
 
       console.log(commandList);
-      speak('Here are all available voice commands. Music commands: play music, pause music, next song, previous song, volume up, volume down. Navigation commands: open navigation, navigate to home, work, or fuel station. Phone commands: show contacts, call contact name, answer call, reject call. Climate commands: adjust climate, turn on AC, set temperature. System commands: go to dashboard, vehicle info, and list all commands.');
+      speak('Here are all available voice commands. Music commands: play music, pause music, next song, previous song, volume up, volume down. Navigation commands: open navigation, navigate to home, work, or fuel station. Phone commands: show contacts, call contact name, answer call, reject call. Climate commands: adjust climate, turn on AC, set temperature. System commands: go to dashboard, go to vehicle info, and list all commands.');
       commandRecognized = true;
     }
     
