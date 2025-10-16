@@ -3,10 +3,11 @@ import { useInfotainment } from '@/contexts/InfotainmentContext';
 import { useMusicPlayer } from '@/contexts/MusicPlayerContext';
 import { Camera } from 'lucide-react';
 import { GestureRecognizer, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
+import { toast } from '@/hooks/use-toast';
 
 export const GestureControl: React.FC = () => {
   const { gestureEnabled, addCommand, setCurrentPanel, speak } = useInfotainment();
-  const { nextSong, previousSong, togglePlay, setVolume } = useMusicPlayer();
+  const { nextSong, previousSong, togglePlay, setVolume, isPlaying } = useMusicPlayer();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cameraActive, setCameraActive] = useState(false);
@@ -109,37 +110,86 @@ export const GestureControl: React.FC = () => {
     lastGestureRef.current = gesture;
     lastGestureTimeRef.current = now;
 
-    addCommand('gesture', `Detected: ${gesture}`);
+    console.log('✋ Gesture detected:', gesture);
+    addCommand('gesture', `${gesture}`);
+
+    let actionTaken = false;
+    let actionMessage = '';
 
     switch (gesture) {
       case 'Thumb_Up':
-        nextSong();
-        speak('Next song');
+        // Open Music Panel
+        setCurrentPanel('music');
+        speak('Opening music player');
+        actionMessage = 'Opening Music Panel';
+        actionTaken = true;
         break;
+        
       case 'Thumb_Down':
-        previousSong();
-        speak('Previous song');
+        // Pause Music
+        if (isPlaying) {
+          togglePlay();
+          speak('Music paused');
+          actionMessage = 'Music Paused';
+        } else {
+          speak('Music is already paused');
+          actionMessage = 'Music Already Paused';
+        }
+        actionTaken = true;
         break;
-      case 'Closed_Fist':
-        togglePlay();
-        speak('Toggle playback');
-        break;
-      case 'Open_Palm':
-        setCurrentPanel('navigation');
-        speak('Opening navigation');
-        break;
+        
       case 'Victory':
-        setVolume((prev) => Math.min(100, prev + 10));
-        speak('Volume up');
+        // Open Navigation Panel (two-finger gesture)
+        setCurrentPanel('navigation');
+        speak('Opening navigation panel');
+        actionMessage = 'Opening Navigation';
+        actionTaken = true;
         break;
-      case 'Pointing_Up':
-        setVolume((prev) => Math.max(0, prev - 10));
-        speak('Volume down');
-        break;
-      case 'ILoveYou':
+        
+      case 'Open_Palm':
+        // Return to Dashboard (hand wave)
         setCurrentPanel('dashboard');
-        speak('Going to dashboard');
+        speak('Returning to dashboard');
+        actionMessage = 'Back to Dashboard';
+        actionTaken = true;
         break;
+        
+      case 'Closed_Fist':
+        // Open Contacts/Phone Panel
+        setCurrentPanel('phone');
+        speak('Opening contacts');
+        actionMessage = 'Opening Contacts';
+        actionTaken = true;
+        break;
+        
+      case 'Pointing_Up':
+        // Open Climate Control
+        setCurrentPanel('climate');
+        speak('Opening climate control');
+        actionMessage = 'Climate Control';
+        actionTaken = true;
+        break;
+        
+      case 'ILoveYou':
+        // Open Vehicle Info
+        setCurrentPanel('vehicle');
+        speak('Opening vehicle information');
+        actionMessage = 'Vehicle Info';
+        actionTaken = true;
+        break;
+        
+      default:
+        console.log('⚠️ Unknown gesture:', gesture);
+        actionMessage = 'Unknown Gesture';
+        break;
+    }
+
+    if (actionTaken) {
+      toast({
+        title: "👋 Gesture Recognized",
+        description: actionMessage,
+        duration: 2000,
+      });
     }
   };
 
@@ -194,9 +244,9 @@ export const GestureControl: React.FC = () => {
 
       <div className="absolute bottom-4 left-4 right-4 z-10 glass px-4 py-3 rounded-xl">
         <div className="text-xs text-muted-foreground text-center space-y-1">
-          <p className="font-semibold">Supported Gestures:</p>
-          <p>👍 Next Song | 👎 Previous | ✊ Play/Pause | ✋ Navigation</p>
-          <p>✌️ Volume Up | ☝️ Volume Down | 🤟 Dashboard</p>
+          <p className="font-semibold">Gesture Commands:</p>
+          <p>👍 Music Panel | 👎 Pause Music | ✌️ Navigation | ✋ Dashboard</p>
+          <p>✊ Contacts | ☝️ Climate | 🤟 Vehicle Info</p>
         </div>
       </div>
       

@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useInfotainment } from '@/contexts/InfotainmentContext';
 import { useMusicPlayer } from '@/contexts/MusicPlayerContext';
 import { useNavigation } from '@/contexts/NavigationContext';
 import { usePhone } from '@/contexts/PhoneContext';
 import { useClimate } from '@/contexts/ClimateContext';
+import { toast } from '@/hooks/use-toast';
 
 export const VoiceControl: React.FC = () => {
   const { voiceEnabled, addCommand, setCurrentPanel, speak, toggleDarkMode } = useInfotainment();
@@ -13,6 +14,7 @@ export const VoiceControl: React.FC = () => {
   const { setTemperature, setFanSpeed, toggleAC } = useClimate();
   
   const recognitionRef = useRef<any>(null);
+  const [lastCommand, setLastCommand] = useState<string>('');
 
   useEffect(() => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -36,8 +38,16 @@ export const VoiceControl: React.FC = () => {
       const last = event.results.length - 1;
       const command = event.results[last][0].transcript.toLowerCase().trim();
       
-      console.log('Voice command detected:', command);
+      console.log('✅ Voice command detected:', command);
+      setLastCommand(command);
       addCommand('voice', command);
+      
+      toast({
+        title: "🎤 Voice Command",
+        description: command,
+        duration: 2000,
+      });
+      
       processVoiceCommand(command);
     };
 
@@ -94,110 +104,146 @@ export const VoiceControl: React.FC = () => {
   }, [voiceEnabled]);
 
   const processVoiceCommand = (command: string) => {
-    // Music commands
-    if (command.includes('play next') || command.includes('next song')) {
+    let commandRecognized = false;
+
+    // Music commands - Play Music
+    if (command.includes('play music')) {
+      setCurrentPanel('music');
+      if (!isPlaying) togglePlay();
+      speak('Opening music player and starting playback');
+      commandRecognized = true;
+    }
+    // Pause Music
+    else if (command.includes('pause music') || command.includes('stop music')) {
+      if (isPlaying) {
+        togglePlay();
+        speak('Music paused');
+      } else {
+        speak('Music is already paused');
+      }
+      commandRecognized = true;
+    }
+    // Music navigation
+    else if (command.includes('next song') || command.includes('play next')) {
       nextSong();
       speak('Playing next song');
+      commandRecognized = true;
     } else if (command.includes('previous song') || command.includes('play previous')) {
       previousSong();
       speak('Playing previous song');
-    } else if (command.includes('pause music')) {
-      if (isPlaying) togglePlay();
-      speak('Music paused');
-    } else if (command.includes('resume music') || command.includes('play music')) {
-      if (!isPlaying) togglePlay();
-      speak('Resuming music');
-    } else if (command.includes('mute audio')) {
-      setVolume(0);
-      speak('Audio muted');
-    } else if (command.includes('increase volume')) {
+      commandRecognized = true;
+    }
+    // Volume control
+    else if (command.includes('increase volume') || command.includes('volume up')) {
       setVolume(prev => Math.min(100, prev + 20));
       speak('Volume increased');
-    } else if (command.includes('decrease volume')) {
+      commandRecognized = true;
+    } else if (command.includes('decrease volume') || command.includes('volume down')) {
       setVolume(prev => Math.max(0, prev - 20));
       speak('Volume decreased');
+      commandRecognized = true;
     }
     
-    // Navigation commands
-    else if (command.includes('go to navigation') || command.includes('open navigation')) {
+    // Navigation Panel
+    else if (command.includes('open navigation') || command.includes('show navigation')) {
       setCurrentPanel('navigation');
-      speak('Opening navigation');
-    } else if (command.includes('navigate to') || command.includes('go to')) {
+      speak('Opening navigation panel');
+      commandRecognized = true;
+    }
+    // Specific navigation destinations
+    else if (command.includes('navigate to') || command.includes('go to')) {
       if (command.includes('home')) {
+        setCurrentPanel('navigation');
         navigateTo('Home');
         speak('Navigating to home');
+        commandRecognized = true;
       } else if (command.includes('work')) {
+        setCurrentPanel('navigation');
         navigateTo('Work');
         speak('Navigating to work');
+        commandRecognized = true;
       } else if (command.includes('fuel') || command.includes('gas station')) {
+        setCurrentPanel('navigation');
         navigateTo('Nearest Fuel Station');
         speak('Finding nearest fuel station');
-      } else if (command.includes('coffee')) {
-        navigateTo('Coffee Shop');
-        speak('Finding nearest coffee shop');
-      } else if (command.includes('restaurant')) {
-        navigateTo('Restaurant');
-        speak('Finding nearby restaurant');
-      } else if (command.includes('mall') || command.includes('shopping')) {
-        navigateTo('Shopping Mall');
-        speak('Navigating to shopping mall');
-      } else if (command.includes('gym')) {
-        navigateTo('Gym');
-        speak('Navigating to gym');
-      } else if (command.includes('hospital')) {
-        navigateTo('Hospital');
-        speak('Finding nearest hospital');
+        commandRecognized = true;
       }
     }
     
-    // Phone commands
+    // Phone/Contacts Panel
+    else if (command.includes('show contacts') || command.includes('open contacts') || command.includes('phone')) {
+      setCurrentPanel('phone');
+      speak('Opening contacts panel');
+      commandRecognized = true;
+    }
+    // Call commands
     else if (command.includes('call')) {
       const names = ['John Doe', 'Jane Smith', 'Bob Wilson', 'Alice Brown'];
       const foundName = names.find(name => 
         command.includes(name.toLowerCase())
       );
       if (foundName) {
+        setCurrentPanel('phone');
         callContact(foundName);
         speak(`Calling ${foundName}`);
+        commandRecognized = true;
       }
     } else if (command.includes('answer call')) {
       answerCall();
       speak('Call answered');
+      commandRecognized = true;
     } else if (command.includes('reject call') || command.includes('decline call')) {
       rejectCall();
       speak('Call rejected');
+      commandRecognized = true;
     }
     
+    // Climate Control Panel
+    else if (command.includes('adjust climate') || command.includes('climate control') || command.includes('open climate')) {
+      setCurrentPanel('climate');
+      speak('Opening climate control panel');
+      commandRecognized = true;
+    }
     // Climate commands
-    else if (command.includes('turn on ac') || command.includes('turn on air conditioning')) {
+    else if (command.includes('turn on ac') || command.includes('air conditioning on')) {
+      setCurrentPanel('climate');
       toggleAC();
       speak('Air conditioning turned on');
+      commandRecognized = true;
     } else if (command.includes('set temperature')) {
       const tempMatch = command.match(/(\d+)/);
       if (tempMatch) {
         const temp = parseInt(tempMatch[1]);
+        setCurrentPanel('climate');
         setTemperature(temp);
         speak(`Temperature set to ${temp} degrees`);
-      }
-    } else if (command.includes('fan speed')) {
-      const speedMatch = command.match(/(\d+)/);
-      if (speedMatch) {
-        const speed = parseInt(speedMatch[1]);
-        setFanSpeed(Math.min(5, speed));
-        speak(`Fan speed set to ${speed}`);
+        commandRecognized = true;
       }
     }
     
-    // System commands
-    else if (command.includes('go to dashboard') || command.includes('open dashboard')) {
+    // Dashboard
+    else if (command.includes('go to dashboard') || command.includes('open dashboard') || command.includes('dashboard')) {
       setCurrentPanel('dashboard');
-      speak('Opening dashboard');
-    } else if (command.includes('vehicle info') || command.includes('car info')) {
+      speak('Returning to main dashboard');
+      commandRecognized = true;
+    }
+    // Vehicle info
+    else if (command.includes('vehicle info') || command.includes('car info')) {
       setCurrentPanel('vehicle');
       speak('Opening vehicle information');
-    } else if (command.includes('night mode') || command.includes('dark mode')) {
-      toggleDarkMode();
-      speak('Night mode toggled');
+      commandRecognized = true;
+    }
+    
+    // If no command was recognized
+    if (!commandRecognized) {
+      console.log('❌ Command not recognized:', command);
+      speak('Command not recognized. Please try again.');
+      toast({
+        title: "⚠️ Command Not Recognized",
+        description: "Please try again with a valid command",
+        variant: "destructive",
+        duration: 3000,
+      });
     }
   };
 
