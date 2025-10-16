@@ -40,13 +40,6 @@ export const VoiceControl: React.FC = () => {
       
       console.log('✅ Voice command detected:', command);
       setLastCommand(command);
-      addCommand('voice', command);
-      
-      toast({
-        title: "🎤 Voice Command",
-        description: command,
-        duration: 2000,
-      });
       
       processVoiceCommand(command);
     };
@@ -106,8 +99,53 @@ export const VoiceControl: React.FC = () => {
   const processVoiceCommand = (command: string) => {
     let commandRecognized = false;
 
+    // Help command - List all commands
+    if (command.includes('list all commands') || command.includes('what can i say') || command.includes('help')) {
+      const commandList = `
+🎵 Music Commands:
+• Play music - Opens music player and starts playback
+• Pause music or Stop music - Pauses the music
+• Next song or Play next - Plays the next song
+• Previous song or Play previous - Plays the previous song
+• Increase volume or Volume up - Increases volume
+• Decrease volume or Volume down - Decreases volume
+
+🗺️ Navigation Commands:
+• Open navigation or Show navigation - Opens navigation panel
+• Navigate to home - Navigates to home location
+• Navigate to work - Navigates to work location
+• Navigate to fuel or gas station - Finds nearest fuel station
+
+📞 Phone Commands:
+• Show contacts or Open contacts - Opens contacts panel
+• Call [contact name] - Calls a specific contact
+• Answer call - Answers incoming call
+• Reject call or Decline call - Rejects incoming call
+
+❄️ Climate Commands:
+• Adjust climate or Climate control - Opens climate control
+• Turn on AC or Air conditioning on - Turns on AC
+• Set temperature [number] - Sets temperature to specified degrees
+
+🚗 System Commands:
+• Go to dashboard or Dashboard - Returns to main dashboard
+• Vehicle info or Car info - Opens vehicle information
+• List all commands or What can I say - Shows this help menu
+      `.trim();
+
+      toast({
+        title: "🎤 Available Voice Commands",
+        description: "Check console for full list",
+        duration: 5000,
+      });
+
+      console.log(commandList);
+      speak('Here are all available voice commands. Music commands: play music, pause music, next song, previous song, volume up, volume down. Navigation commands: open navigation, navigate to home, work, or fuel station. Phone commands: show contacts, call contact name, answer call, reject call. Climate commands: adjust climate, turn on AC, set temperature. System commands: go to dashboard, vehicle info, and list all commands.');
+      commandRecognized = true;
+    }
+    
     // Music commands - Play Music
-    if (command.includes('play music')) {
+    else if (command.includes('play music')) {
       setCurrentPanel('music');
       if (!isPlaying) togglePlay();
       speak('Opening music player and starting playback');
@@ -237,12 +275,20 @@ export const VoiceControl: React.FC = () => {
     // If no command was recognized
     if (!commandRecognized) {
       console.log('❌ Command not recognized:', command);
-      speak('Command not recognized. Please try again.');
+      speak('Command not recognized. Try saying "list all commands" to hear what I can do.');
       toast({
         title: "⚠️ Command Not Recognized",
-        description: "Please try again with a valid command",
+        description: "Say 'list all commands' for help",
         variant: "destructive",
         duration: 3000,
+      });
+    } else {
+      // Only add to command log if recognized
+      addCommand('voice', command);
+      toast({
+        title: "🎤 Voice Command",
+        description: command,
+        duration: 2000,
       });
     }
   };
