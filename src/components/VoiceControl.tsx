@@ -109,28 +109,29 @@ export const VoiceControl: React.FC = () => {
 • Previous song or Play previous - Plays the previous song
 • Increase volume or Volume up - Increases volume
 • Decrease volume or Volume down - Decreases volume
+• Open music or Music panel - Opens music panel
 
 🗺️ Navigation Commands:
 • Open navigation or Show navigation - Opens navigation panel
 • Navigate to home - Navigates to home location
 • Navigate to work - Navigates to work location
-• Navigate to fuel or gas station - Finds nearest fuel station
+• Navigate to fuel or Gas station - Finds nearest fuel station
 
 📞 Phone Commands:
 • Show contacts or Open contacts - Opens contacts panel
-• Call [contact name] - Calls a specific contact
+• Call [contact name] - Calls a specific contact (John Doe, Jane Smith, Bob Wilson, Alice Brown)
 • Answer call - Answers incoming call
 • Reject call or Decline call - Rejects incoming call
 
 ❄️ Climate Commands:
-• Adjust climate or Climate control - Opens climate control
+• Adjust climate or Climate control - Opens climate control panel
 • Turn on AC or Air conditioning on - Turns on AC
 • Set temperature [number] - Sets temperature to specified degrees
 
 🚗 System Commands:
 • Go to dashboard or Dashboard - Returns to main dashboard
 • Vehicle info or Car info - Opens vehicle information
-• List all commands or What can I say - Shows this help menu
+• List all commands or What can I say or Help - Shows this help menu
       `.trim();
 
       toast({
@@ -265,8 +266,8 @@ export const VoiceControl: React.FC = () => {
       }
     }
     
-    // Dashboard
-    else if (command.includes('go to dashboard') || command.includes('open dashboard') || command.includes('dashboard')) {
+    // Dashboard - must check 'go to dashboard' before generic 'dashboard'
+    else if (command.includes('dashboard')) {
       setCurrentPanel('dashboard');
       speak('Returning to main dashboard');
       commandRecognized = true;
