@@ -137,6 +137,22 @@ export const GestureControl: React.FC = () => {
         }
         actionTaken = true;
         break;
+      
+      case 'Pointing_Right':
+        // Next Song
+        nextSong();
+        speak('Playing next song');
+        actionMessage = 'Next Song';
+        actionTaken = true;
+        break;
+      
+      case 'Pointing_Left':
+        // Previous Song
+        previousSong();
+        speak('Playing previous song');
+        actionMessage = 'Previous Song';
+        actionTaken = true;
+        break;
         
       case 'Victory':
         // Open Navigation Panel (two-finger gesture)
@@ -245,8 +261,8 @@ export const GestureControl: React.FC = () => {
       <div className="absolute bottom-4 left-4 right-4 z-10 glass px-4 py-3 rounded-xl">
         <div className="text-xs text-muted-foreground text-center space-y-1">
           <p className="font-semibold">Gesture Commands:</p>
-          <p>👍 Music Panel | 👎 Pause Music | ✌️ Navigation | ✋ Dashboard</p>
-          <p>✊ Contacts | ☝️ Climate | 🤟 Vehicle Info</p>
+          <p>👍 Music Panel | 👎 Pause Music | 👉 Next Song | 👈 Previous Song</p>
+          <p>✌️ Navigation | ✋ Dashboard | ✊ Contacts | ☝️ Climate | 🤟 Vehicle Info</p>
         </div>
       </div>
       

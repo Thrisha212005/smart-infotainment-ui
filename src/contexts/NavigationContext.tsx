@@ -10,11 +10,11 @@ const destinations = [
   'Home',
   'Work',
   'Nearest Fuel Station',
-  'Coffee Shop',
-  'Restaurant',
+  'Nearest Coffee Shop',
+  'Nearest Restaurant',
+  'Nearest Hospital',
   'Shopping Mall',
   'Gym',
-  'Hospital',
 ];
 
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);

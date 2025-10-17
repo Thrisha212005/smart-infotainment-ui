@@ -96,6 +96,10 @@ export const VoiceControl: React.FC = () => {
     }
   }, [voiceEnabled]);
 
+  const fuzzyMatch = (command: string, keywords: string[]): boolean => {
+    return keywords.some(keyword => command.includes(keyword));
+  };
+
   const processVoiceCommand = (command: string) => {
     let commandRecognized = false;
 
@@ -113,9 +117,12 @@ export const VoiceControl: React.FC = () => {
 
 🗺️ Navigation Commands:
 • Open navigation or Show navigation - Opens navigation panel
-• Navigate to home - Navigates to home location
-• Navigate to work - Navigates to work location
-• Navigate to fuel or Gas station - Finds nearest fuel station
+• Navigate to home or Go home - Navigates to home location
+• Navigate to work or Go to work - Navigates to work location
+• Find nearest fuel station or Gas station - Finds nearest fuel station
+• Find nearest coffee shop - Finds nearest coffee shop
+• Find nearest restaurant - Finds nearest restaurant
+• Find nearest hospital - Finds nearest hospital
 
 📞 Phone Commands:
 • Show contacts or Open contacts - Opens contacts panel
@@ -129,7 +136,7 @@ export const VoiceControl: React.FC = () => {
 • Set temperature [number] - Sets temperature to specified degrees
 
 🚗 System Commands:
-• Go to dashboard or Dashboard - Returns to main dashboard
+• Go to dashboard or Return to dashboard or Back to home - Returns to main dashboard
 • Vehicle info or Car info - Opens vehicle information
 • List all commands or What can I say or Help - Shows this help menu
       `.trim();
@@ -141,7 +148,7 @@ export const VoiceControl: React.FC = () => {
       });
 
       console.log(commandList);
-      speak('Here are all available voice commands. Music commands: play music, pause music, next song, previous song, volume up, volume down. Navigation commands: open navigation, navigate to home, work, or fuel station. Phone commands: show contacts, call contact name, answer call, reject call. Climate commands: adjust climate, turn on AC, set temperature. System commands: go to dashboard, go to vehicle info, and list all commands.');
+      speak('Here are all available voice commands. Music commands: play music, pause music, next song, previous song, volume up, volume down. Navigation commands: open navigation, navigate to home, work, fuel station, coffee shop, restaurant, or hospital. Phone commands: show contacts, call contact name, answer call, reject call. Climate commands: adjust climate, turn on AC, set temperature. System commands: go to dashboard, go to vehicle info, and list all commands.');
       commandRecognized = true;
     }
     
@@ -196,7 +203,7 @@ export const VoiceControl: React.FC = () => {
       commandRecognized = true;
     }
     // Specific navigation destinations
-    else if (command.includes('navigate to') || command.includes('go to')) {
+    else if (fuzzyMatch(command, ['navigate to', 'go to', 'go home', 'navigate home'])) {
       if (command.includes('home')) {
         setCurrentPanel('navigation');
         navigateTo('Home');
@@ -207,10 +214,29 @@ export const VoiceControl: React.FC = () => {
         navigateTo('Work');
         speak('Navigating to work');
         commandRecognized = true;
-      } else if (command.includes('fuel') || command.includes('gas station')) {
+      }
+    }
+    // Find nearest destinations
+    else if (fuzzyMatch(command, ['find nearest', 'nearest', 'find', 'show'])) {
+      if (fuzzyMatch(command, ['fuel', 'gas', 'gas station', 'petrol'])) {
         setCurrentPanel('navigation');
         navigateTo('Nearest Fuel Station');
         speak('Finding nearest fuel station');
+        commandRecognized = true;
+      } else if (fuzzyMatch(command, ['coffee', 'coffee shop', 'cafe'])) {
+        setCurrentPanel('navigation');
+        navigateTo('Nearest Coffee Shop');
+        speak('Showing route to the nearest coffee shop');
+        commandRecognized = true;
+      } else if (fuzzyMatch(command, ['restaurant', 'food', 'dining', 'eat'])) {
+        setCurrentPanel('navigation');
+        navigateTo('Nearest Restaurant');
+        speak('Displaying nearby restaurants');
+        commandRecognized = true;
+      } else if (fuzzyMatch(command, ['hospital', 'medical', 'emergency'])) {
+        setCurrentPanel('navigation');
+        navigateTo('Nearest Hospital');
+        speak('Navigating to the nearest hospital');
         commandRecognized = true;
       }
     }
@@ -233,11 +259,11 @@ export const VoiceControl: React.FC = () => {
         speak(`Calling ${foundName}`);
         commandRecognized = true;
       }
-    } else if (command.includes('answer call')) {
+    } else if (fuzzyMatch(command, ['answer call', 'answer', 'pick up', 'take call'])) {
       answerCall();
       speak('Call answered');
       commandRecognized = true;
-    } else if (command.includes('reject call') || command.includes('decline call')) {
+    } else if (fuzzyMatch(command, ['reject call', 'decline call', 'ignore call', 'hang up', 'reject'])) {
       rejectCall();
       speak('Call rejected');
       commandRecognized = true;
@@ -266,8 +292,8 @@ export const VoiceControl: React.FC = () => {
       }
     }
     
-    // Dashboard - must check 'go to dashboard' before generic 'dashboard'
-    else if (command.includes('dashboard')) {
+    // Dashboard
+    else if (fuzzyMatch(command, ['dashboard', 'go to dashboard', 'return to dashboard', 'back to home', 'go home', 'home screen', 'main screen'])) {
       setCurrentPanel('dashboard');
       speak('Returning to main dashboard');
       commandRecognized = true;
@@ -282,7 +308,7 @@ export const VoiceControl: React.FC = () => {
     // If no command was recognized
     if (!commandRecognized) {
       console.log('❌ Command not recognized:', command);
-      speak('Command not recognized. Try saying "list all commands" to hear what I can do.');
+      speak("Sorry, I didn't catch that. Please say that again.");
       toast({
         title: "⚠️ Command Not Recognized",
         description: "Say 'list all commands' for help",
