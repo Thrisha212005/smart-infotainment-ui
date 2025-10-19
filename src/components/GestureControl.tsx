@@ -107,8 +107,11 @@ export const GestureControl: React.FC = () => {
 
     const now = Date.now();
     
-    // Debounce: only process if same gesture not detected in last 1 second
-    if (gesture === lastGestureRef.current && now - lastGestureTimeRef.current < 1000) {
+    // Reduced debounce for music controls, normal for others
+    const isMusicControl = gesture === 'Pointing_Right' || gesture === 'Pointing_Left';
+    const debounceTime = isMusicControl ? 500 : 1000;
+    
+    if (gesture === lastGestureRef.current && now - lastGestureTimeRef.current < debounceTime) {
       return;
     }
 

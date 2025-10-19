@@ -29,6 +29,7 @@ export const VoiceControl: React.FC = () => {
     recognition.continuous = true;
     recognition.interimResults = false;
     recognition.lang = 'en-US';
+    recognition.maxAlternatives = 3;
 
     recognition.onstart = () => {
       console.log('Voice recognition started');
@@ -36,8 +37,11 @@ export const VoiceControl: React.FC = () => {
 
     recognition.onresult = (event: any) => {
       const last = event.results.length - 1;
-      const transcript = event.results[last][0].transcript;
-      const confidence = event.results[last][0].confidence;
+      const result = event.results[last];
+      
+      // Process immediately without waiting
+      const transcript = result[0].transcript;
+      const confidence = result[0].confidence;
       
       // Normalize command: lowercase, trim, remove punctuation
       const command = transcript.toLowerCase().trim().replace(/[.,!?;:]/g, '');
@@ -45,6 +49,7 @@ export const VoiceControl: React.FC = () => {
       console.log('✅ Voice command detected:', command, '| Confidence:', confidence.toFixed(2));
       setLastCommand(command);
       
+      // Process immediately
       processVoiceCommand(command, confidence);
     };
 
