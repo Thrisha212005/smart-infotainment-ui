@@ -100,10 +100,15 @@ export const GestureControl: React.FC = () => {
   };
 
   const processDetectedGesture = (gesture: string) => {
+    // Filter out "None" gestures to reduce noise
+    if (gesture === 'None' || !gesture) {
+      return;
+    }
+
     const now = Date.now();
     
-    // Debounce: only process if same gesture not detected in last 2 seconds
-    if (gesture === lastGestureRef.current && now - lastGestureTimeRef.current < 2000) {
+    // Debounce: only process if same gesture not detected in last 1 second
+    if (gesture === lastGestureRef.current && now - lastGestureTimeRef.current < 1000) {
       return;
     }
 
@@ -196,6 +201,7 @@ export const GestureControl: React.FC = () => {
         
       default:
         console.log('⚠️ Unknown gesture:', gesture);
+        speak(`Unknown gesture: ${gesture}`);
         actionMessage = 'Unknown Gesture';
         break;
     }

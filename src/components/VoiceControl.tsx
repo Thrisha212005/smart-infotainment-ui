@@ -36,12 +36,16 @@ export const VoiceControl: React.FC = () => {
 
     recognition.onresult = (event: any) => {
       const last = event.results.length - 1;
-      const command = event.results[last][0].transcript.toLowerCase().trim();
+      const transcript = event.results[last][0].transcript;
+      const confidence = event.results[last][0].confidence;
       
-      console.log('✅ Voice command detected:', command);
+      // Normalize command: lowercase, trim, remove punctuation
+      const command = transcript.toLowerCase().trim().replace(/[.,!?;:]/g, '');
+      
+      console.log('✅ Voice command detected:', command, '| Confidence:', confidence.toFixed(2));
       setLastCommand(command);
       
-      processVoiceCommand(command);
+      processVoiceCommand(command, confidence);
     };
 
     recognition.onerror = (event: any) => {
@@ -100,8 +104,11 @@ export const VoiceControl: React.FC = () => {
     return keywords.some(keyword => command.includes(keyword));
   };
 
-  const processVoiceCommand = (command: string) => {
+  const processVoiceCommand = (command: string, confidence: number = 1.0) => {
     let commandRecognized = false;
+    
+    // Log for debugging
+    console.log('🎤 Processing command:', command, '| Confidence:', confidence.toFixed(2));
 
     // Help command - List all commands
     if (command.includes('list all commands') || command.includes('what can i say') || command.includes('help')) {
@@ -175,12 +182,24 @@ export const VoiceControl: React.FC = () => {
       }
       commandRecognized = true;
     }
-    // Music navigation
-    else if (command.includes('next song') || command.includes('play next')) {
+    // Music navigation - Enhanced matching
+    else if (
+      command.includes('next song') || 
+      command.includes('play next') || 
+      command.includes('skip') ||
+      (command.includes('next') && (command.includes('song') || command.includes('track')))
+    ) {
+      console.log('✅ Next song command recognized');
       nextSong();
       speak('Playing next song');
       commandRecognized = true;
-    } else if (command.includes('previous song') || command.includes('play previous')) {
+    } else if (
+      command.includes('previous song') || 
+      command.includes('play previous') ||
+      command.includes('go back') ||
+      (command.includes('previous') && (command.includes('song') || command.includes('track')))
+    ) {
+      console.log('✅ Previous song command recognized');
       previousSong();
       speak('Playing previous song');
       commandRecognized = true;
@@ -259,11 +278,19 @@ export const VoiceControl: React.FC = () => {
         speak(`Calling ${foundName}`);
         commandRecognized = true;
       }
-    } else if (fuzzyMatch(command, ['answer call', 'answer', 'pick up', 'take call'])) {
+    } else if (
+      fuzzyMatch(command, ['answer call', 'answer', 'pick up', 'take call']) ||
+      command.includes('answer')
+    ) {
+      console.log('✅ Answer call command recognized');
       answerCall();
       speak('Call answered');
       commandRecognized = true;
-    } else if (fuzzyMatch(command, ['reject call', 'decline call', 'ignore call', 'hang up', 'reject'])) {
+    } else if (
+      fuzzyMatch(command, ['reject call', 'decline call', 'ignore call', 'hang up', 'reject']) ||
+      (command.includes('reject') || command.includes('decline') || command.includes('hang'))
+    ) {
+      console.log('✅ Reject call command recognized');
       rejectCall();
       speak('Call rejected');
       commandRecognized = true;
@@ -292,8 +319,14 @@ export const VoiceControl: React.FC = () => {
       }
     }
     
-    // Dashboard
-    else if (fuzzyMatch(command, ['dashboard', 'go to dashboard', 'return to dashboard', 'back to home', 'go home', 'home screen', 'main screen'])) {
+    // Dashboard - Enhanced fuzzy matching
+    else if (
+      fuzzyMatch(command, ['dashboard', 'go to dashboard', 'return to dashboard', 'back to home', 'go home', 'home screen', 'main screen']) ||
+      command.includes('dashboard') ||
+      (command.includes('go') && command.includes('home')) ||
+      (command.includes('back') && (command.includes('home') || command.includes('main')))
+    ) {
+      console.log('✅ Dashboard command recognized');
       setCurrentPanel('dashboard');
       speak('Returning to main dashboard');
       commandRecognized = true;
@@ -307,8 +340,15 @@ export const VoiceControl: React.FC = () => {
     
     // If no command was recognized
     if (!commandRecognized) {
-      console.log('❌ Command not recognized:', command);
-      speak("Sorry, I didn't catch that. Please say that again.");
+      console.log('❌ Command not recognized:', command, '| Confidence:', confidence.toFixed(2));
+      
+      // If confidence is moderate (0.5-0.75), ask for confirmation
+      if (confidence >= 0.5 && confidence < 0.75) {
+        speak(`Did you say ${command}? Please try again more clearly.`);
+      } else {
+        speak("Sorry, I didn't catch that. Please say that again.");
+      }
+      
       toast({
         title: "⚠️ Command Not Recognized",
         description: "Say 'list all commands' for help",
@@ -317,6 +357,7 @@ export const VoiceControl: React.FC = () => {
       });
     } else {
       // Only add to command log if recognized
+      console.log('✅ Command executed successfully:', command);
       addCommand('voice', command);
       toast({
         title: "🎤 Voice Command",
