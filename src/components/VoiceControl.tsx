@@ -13,7 +13,7 @@ export const VoiceControl: React.FC = () => {
   const { nextSong, previousSong, togglePlay, setVolume, isPlaying } = useMusicPlayer();
   const { navigateTo } = useNavigation();
   const { callContact, answerCall, rejectCall } = usePhone();
-  const { setTemperature, setFanSpeed, toggleAC } = useClimate();
+  const { setTemperature, setFanSpeed, toggleAC, isACOn } = useClimate();
   
   const recognitionRef = useRef<any>(null);
   const [lastCommand, setLastCommand] = useState<string>('');
@@ -317,10 +317,28 @@ export const VoiceControl: React.FC = () => {
         synonyms: ['air conditioning on', 'ac on', 'cooling on'],
         action: () => {
           setCurrentPanel('climate');
-          toggleAC();
-          speak('Air conditioning turned on');
+          if (!isACOn) {
+            toggleAC();
+            speak('Air conditioning turned on');
+          } else {
+            speak('Air conditioning is already on');
+          }
         },
         description: 'Turns on air conditioning',
+      },
+      {
+        keywords: ['turn off', 'ac'],
+        synonyms: ['air conditioning off', 'ac off', 'cooling off'],
+        action: () => {
+          setCurrentPanel('climate');
+          if (isACOn) {
+            toggleAC();
+            speak('Air conditioning turned off');
+          } else {
+            speak('Air conditioning is already off');
+          }
+        },
+        description: 'Turns off air conditioning',
       },
       
       // Vehicle commands
@@ -442,9 +460,22 @@ export const VoiceControl: React.FC = () => {
       return;
     }
     
-    // Auto-execute if high confidence, otherwise show selection UI
-    if (shouldAutoExecute(matches)) {
-      const topMatch = matches[0];
+    // Always auto-execute the highest confidence match
+    const topMatch = matches[0];
+    
+    // If confidence is very low, ask for clarification
+    if (topMatch.confidence < 0.5) {
+      console.log('⚠️ Low confidence, asking for clarification');
+      speak(`Did you mean ${topMatch.command}?`);
+      toast({
+        title: "⚠️ Please Confirm",
+        description: `Did you mean: ${topMatch.command}?`,
+        duration: 3000,
+      });
+      // Store matches for potential confirmation
+      setCommandMatches(matches);
+    } else {
+      // Auto-execute
       console.log('✅ Auto-executing command:', topMatch.command, '| Confidence:', (topMatch.confidence * 100).toFixed(0) + '%');
       topMatch.action();
       addCommand('voice', command);
@@ -453,9 +484,6 @@ export const VoiceControl: React.FC = () => {
         description: topMatch.command,
         duration: 2000,
       });
-    } else {
-      console.log('🔍 Showing command selection UI with', matches.length, 'matches');
-      setCommandMatches(matches);
     }
   };
 
