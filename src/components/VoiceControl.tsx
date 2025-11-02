@@ -5,9 +5,11 @@ import { useNavigation } from '@/contexts/NavigationContext';
 import { usePhone } from '@/contexts/PhoneContext';
 import { useClimate } from '@/contexts/ClimateContext';
 import { toast } from '@/hooks/use-toast';
+import { VoiceCommandMatcher } from './VoiceCommandMatcher';
+import { getTopMatches, shouldAutoExecute, CommandMatch } from '@/utils/voiceCommandEngine';
 
 export const VoiceControl: React.FC = () => {
-  const { voiceEnabled, addCommand, setCurrentPanel, speak, toggleDarkMode } = useInfotainment();
+  const { voiceEnabled, addCommand, setCurrentPanel, speak, currentPanel } = useInfotainment();
   const { nextSong, previousSong, togglePlay, setVolume, isPlaying } = useMusicPlayer();
   const { navigateTo } = useNavigation();
   const { callContact, answerCall, rejectCall } = usePhone();
@@ -15,6 +17,7 @@ export const VoiceControl: React.FC = () => {
   
   const recognitionRef = useRef<any>(null);
   const [lastCommand, setLastCommand] = useState<string>('');
+  const [commandMatches, setCommandMatches] = useState<CommandMatch[]>([]);
 
   useEffect(() => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -105,52 +108,271 @@ export const VoiceControl: React.FC = () => {
     }
   }, [voiceEnabled]);
 
-  const fuzzyMatch = (command: string, keywords: string[]): boolean => {
-    return keywords.some(keyword => command.includes(keyword));
+  const buildCommandPatterns = () => {
+    return [
+      // Music commands
+      {
+        keywords: ['play', 'music'],
+        synonyms: ['start', 'begin'],
+        action: () => {
+          setCurrentPanel('music');
+          if (!isPlaying) togglePlay();
+          speak('Opening music player and starting playback');
+        },
+        description: 'Opens music panel and starts playback',
+      },
+      {
+        keywords: ['pause', 'music'],
+        synonyms: ['stop', 'halt', 'pause', 'stop playing'],
+        action: () => {
+          if (isPlaying) {
+            togglePlay();
+            speak('Music paused');
+          } else {
+            speak('Music is already paused');
+          }
+        },
+        description: 'Pauses current music playback',
+        confidenceBoost: 0.1, // Enhanced for problematic command
+        minConfidence: 0.6, // Lower threshold
+      },
+      {
+        keywords: ['next', 'song'],
+        synonyms: ['skip', 'play next', 'next track'],
+        action: () => {
+          nextSong();
+          speak('Playing next song');
+        },
+        description: 'Plays the next song',
+      },
+      {
+        keywords: ['previous', 'song'],
+        synonyms: ['go back', 'play previous', 'previous track', 'last song'],
+        action: () => {
+          previousSong();
+          speak('Playing previous song');
+        },
+        description: 'Plays the previous song',
+      },
+      {
+        keywords: ['volume', 'up'],
+        synonyms: ['increase volume', 'louder', 'raise volume'],
+        action: () => {
+          setVolume(prev => Math.min(100, prev + 20));
+          speak('Volume increased');
+        },
+        description: 'Increases volume by 20%',
+      },
+      {
+        keywords: ['volume', 'down'],
+        synonyms: ['decrease volume', 'quieter', 'lower volume'],
+        action: () => {
+          setVolume(prev => Math.max(0, prev - 20));
+          speak('Volume decreased');
+        },
+        description: 'Decreases volume by 20%',
+      },
+      {
+        keywords: ['open', 'music'],
+        synonyms: ['music panel', 'show music', 'go to music'],
+        action: () => {
+          setCurrentPanel('music');
+          speak('Opening music panel');
+        },
+        description: 'Opens music panel',
+      },
+      
+      // Dashboard commands - Enhanced with state awareness
+      {
+        keywords: ['dashboard'],
+        synonyms: ['go dash', 'show dash', 'main screen', 'home screen', 'back to home', 'go home', 'return dashboard'],
+        action: () => {
+          setCurrentPanel('dashboard');
+          speak('Returning to main dashboard');
+        },
+        description: 'Returns to main dashboard',
+        confidenceBoost: currentPanel !== 'dashboard' ? 0.15 : 0, // Boost if not already on dashboard
+        minConfidence: 0.6,
+      },
+      
+      // Navigation commands - Enhanced with location-aware matching
+      {
+        keywords: ['open', 'navigation'],
+        synonyms: ['show navigation', 'go to navigation', 'navigation panel'],
+        action: () => {
+          setCurrentPanel('navigation');
+          speak('Opening navigation panel');
+        },
+        description: 'Opens navigation panel',
+      },
+      {
+        keywords: ['navigate', 'home'],
+        synonyms: ['go home', 'navigate home', 'route home', 'directions home'],
+        action: () => {
+          setCurrentPanel('navigation');
+          navigateTo('Home');
+          speak('Navigating to home');
+        },
+        description: 'Navigate to home location',
+        minConfidence: 0.65,
+      },
+      {
+        keywords: ['navigate', 'work'],
+        synonyms: ['go work', 'go to work', 'route work', 'directions work'],
+        action: () => {
+          setCurrentPanel('navigation');
+          navigateTo('Work');
+          speak('Navigating to work');
+        },
+        description: 'Navigate to work location',
+        minConfidence: 0.65,
+      },
+      {
+        keywords: ['nearest', 'fuel'],
+        synonyms: ['gas station', 'petrol', 'fuel station', 'gas', 'find fuel'],
+        action: () => {
+          setCurrentPanel('navigation');
+          navigateTo('Nearest Fuel Station');
+          speak('Finding nearest fuel station');
+        },
+        description: 'Navigate to nearest fuel station',
+        minConfidence: 0.65,
+      },
+      {
+        keywords: ['nearest', 'coffee'],
+        synonyms: ['coffee shop', 'cafe', 'find coffee'],
+        action: () => {
+          setCurrentPanel('navigation');
+          navigateTo('Nearest Coffee Shop');
+          speak('Showing route to the nearest coffee shop');
+        },
+        description: 'Navigate to nearest coffee shop',
+        minConfidence: 0.65,
+      },
+      {
+        keywords: ['nearest', 'restaurant'],
+        synonyms: ['food', 'dining', 'eat', 'find restaurant'],
+        action: () => {
+          setCurrentPanel('navigation');
+          navigateTo('Nearest Restaurant');
+          speak('Displaying nearby restaurants');
+        },
+        description: 'Navigate to nearest restaurant',
+        minConfidence: 0.65,
+      },
+      {
+        keywords: ['nearest', 'hospital'],
+        synonyms: ['medical', 'emergency', 'find hospital'],
+        action: () => {
+          setCurrentPanel('navigation');
+          navigateTo('Nearest Hospital');
+          speak('Navigating to the nearest hospital');
+        },
+        description: 'Navigate to nearest hospital',
+        minConfidence: 0.65,
+      },
+      
+      // Phone commands
+      {
+        keywords: ['show', 'contacts'],
+        synonyms: ['open contacts', 'phone', 'contacts panel', 'go to phone'],
+        action: () => {
+          setCurrentPanel('phone');
+          speak('Opening contacts panel');
+        },
+        description: 'Opens contacts panel',
+      },
+      {
+        keywords: ['answer', 'call'],
+        synonyms: ['answer', 'pick up', 'take call', 'accept call'],
+        action: () => {
+          answerCall();
+          speak('Call answered');
+        },
+        description: 'Answers incoming call',
+      },
+      {
+        keywords: ['reject', 'call'],
+        synonyms: ['decline call', 'ignore call', 'hang up', 'reject', 'decline'],
+        action: () => {
+          rejectCall();
+          speak('Call rejected');
+        },
+        description: 'Rejects incoming call',
+        minConfidence: 0.65,
+      },
+      
+      // Climate commands
+      {
+        keywords: ['adjust', 'climate'],
+        synonyms: ['climate control', 'open climate', 'go to climate', 'climate panel'],
+        action: () => {
+          setCurrentPanel('climate');
+          speak('Opening climate control panel');
+        },
+        description: 'Opens climate control panel',
+      },
+      {
+        keywords: ['turn on', 'ac'],
+        synonyms: ['air conditioning on', 'ac on', 'cooling on'],
+        action: () => {
+          setCurrentPanel('climate');
+          toggleAC();
+          speak('Air conditioning turned on');
+        },
+        description: 'Turns on air conditioning',
+      },
+      
+      // Vehicle commands
+      {
+        keywords: ['vehicle', 'info'],
+        synonyms: ['car info', 'vehicle information', 'car details'],
+        action: () => {
+          setCurrentPanel('vehicle');
+          speak('Opening vehicle information');
+        },
+        description: 'Opens vehicle information panel',
+      },
+    ];
   };
 
   const processVoiceCommand = (command: string, confidence: number = 1.0) => {
-    let commandRecognized = false;
-    
-    // Log for debugging
     console.log('🎤 Processing command:', command, '| Confidence:', confidence.toFixed(2));
-
-    // Help command - List all commands
+    
+    // Special handling for help command
     if (command.includes('list all commands') || command.includes('what can i say') || command.includes('help')) {
       const commandList = `
 🎵 Music Commands:
 • Play music - Opens music player and starts playback
 • Pause music or Stop music - Pauses the music
-• Next song or Play next - Plays the next song
-• Previous song or Play previous - Plays the previous song
-• Increase volume or Volume up - Increases volume
-• Decrease volume or Volume down - Decreases volume
-• Open music or Music panel - Opens music panel
+• Next song or Skip - Plays the next song
+• Previous song or Go back - Plays the previous song
+• Volume up - Increases volume
+• Volume down - Decreases volume
 
 🗺️ Navigation Commands:
-• Open navigation or Show navigation - Opens navigation panel
-• Navigate to home or Go home - Navigates to home location
-• Navigate to work or Go to work - Navigates to work location
-• Find nearest fuel station or Gas station - Finds nearest fuel station
-• Find nearest coffee shop - Finds nearest coffee shop
-• Find nearest restaurant - Finds nearest restaurant
-• Find nearest hospital - Finds nearest hospital
+• Open navigation - Opens navigation panel
+• Navigate to home - Navigates to home location
+• Navigate to work - Navigates to work location
+• Nearest fuel station - Finds nearest fuel station
+• Nearest coffee shop - Finds nearest coffee shop
+• Nearest restaurant - Finds nearest restaurant
+• Nearest hospital - Finds nearest hospital
 
 📞 Phone Commands:
-• Show contacts or Open contacts - Opens contacts panel
-• Call [contact name] - Calls a specific contact (John Doe, Jane Smith, Bob Wilson, Alice Brown)
+• Show contacts - Opens contacts panel
 • Answer call - Answers incoming call
-• Reject call or Decline call - Rejects incoming call
+• Reject call - Rejects incoming call
 
 ❄️ Climate Commands:
-• Adjust climate or Climate control - Opens climate control panel
-• Turn on AC or Air conditioning on - Turns on AC
-• Set temperature [number] - Sets temperature to specified degrees
+• Adjust climate - Opens climate control panel
+• Turn on AC - Turns on air conditioning
+• Set temperature [number] - Sets temperature
 
 🚗 System Commands:
-• Go to dashboard or Return to dashboard or Back to home - Returns to main dashboard
-• Vehicle info or Car info - Opens vehicle information
-• List all commands or What can I say or Help - Shows this help menu
+• Dashboard - Returns to main dashboard
+• Vehicle info - Opens vehicle information
+• List all commands - Shows this help menu
       `.trim();
 
       toast({
@@ -160,217 +382,108 @@ export const VoiceControl: React.FC = () => {
       });
 
       console.log(commandList);
-      speak('Here are all available voice commands. Music commands: play music, pause music, next song, previous song, volume up, volume down. Navigation commands: open navigation, navigate to home, work, fuel station, coffee shop, restaurant, or hospital. Phone commands: show contacts, call contact name, answer call, reject call. Climate commands: adjust climate, turn on AC, set temperature. System commands: go to dashboard, go to vehicle info, and list all commands.');
-      commandRecognized = true;
+      speak('Voice commands available. Say pause music, dashboard, navigate to location, or list all commands for help.');
+      addCommand('voice', command);
+      return;
     }
     
-    // Music commands - Open Music Panel
-    else if (command.includes('open music') || command.includes('go to music') || command.includes('music panel')) {
-      setCurrentPanel('music');
-      speak('Opening music panel');
-      commandRecognized = true;
-    }
-    // Play Music
-    else if (command.includes('play music')) {
-      setCurrentPanel('music');
-      if (!isPlaying) togglePlay();
-      speak('Opening music player and starting playback');
-      commandRecognized = true;
-    }
-    // Pause Music
-    else if (command.includes('pause music') || command.includes('stop music')) {
-      if (isPlaying) {
-        togglePlay();
-        speak('Music paused');
-      } else {
-        speak('Music is already paused');
-      }
-      commandRecognized = true;
-    }
-    // Music navigation - Enhanced matching
-    else if (
-      command.includes('next song') || 
-      command.includes('play next') || 
-      command.includes('skip') ||
-      (command.includes('next') && (command.includes('song') || command.includes('track')))
-    ) {
-      console.log('✅ Next song command recognized');
-      nextSong();
-      speak('Playing next song');
-      commandRecognized = true;
-    } else if (
-      command.includes('previous song') || 
-      command.includes('play previous') ||
-      command.includes('go back') ||
-      (command.includes('previous') && (command.includes('song') || command.includes('track')))
-    ) {
-      console.log('✅ Previous song command recognized');
-      previousSong();
-      speak('Playing previous song');
-      commandRecognized = true;
-    }
-    // Volume control
-    else if (command.includes('increase volume') || command.includes('volume up')) {
-      setVolume(prev => Math.min(100, prev + 20));
-      speak('Volume increased');
-      commandRecognized = true;
-    } else if (command.includes('decrease volume') || command.includes('volume down')) {
-      setVolume(prev => Math.max(0, prev - 20));
-      speak('Volume decreased');
-      commandRecognized = true;
-    }
-    
-    // Navigation Panel
-    else if (command.includes('open navigation') || command.includes('show navigation') || command.includes('go to navigation') || command.includes('navigation panel')) {
-      setCurrentPanel('navigation');
-      speak('Opening navigation panel');
-      commandRecognized = true;
-    }
-    // Specific navigation destinations
-    else if (fuzzyMatch(command, ['navigate to', 'go to', 'go home', 'navigate home'])) {
-      if (command.includes('home')) {
-        setCurrentPanel('navigation');
-        navigateTo('Home');
-        speak('Navigating to home');
-        commandRecognized = true;
-      } else if (command.includes('work')) {
-        setCurrentPanel('navigation');
-        navigateTo('Work');
-        speak('Navigating to work');
-        commandRecognized = true;
-      }
-    }
-    // Find nearest destinations
-    else if (fuzzyMatch(command, ['find nearest', 'nearest', 'find', 'show'])) {
-      if (fuzzyMatch(command, ['fuel', 'gas', 'gas station', 'petrol'])) {
-        setCurrentPanel('navigation');
-        navigateTo('Nearest Fuel Station');
-        speak('Finding nearest fuel station');
-        commandRecognized = true;
-      } else if (fuzzyMatch(command, ['coffee', 'coffee shop', 'cafe'])) {
-        setCurrentPanel('navigation');
-        navigateTo('Nearest Coffee Shop');
-        speak('Showing route to the nearest coffee shop');
-        commandRecognized = true;
-      } else if (fuzzyMatch(command, ['restaurant', 'food', 'dining', 'eat'])) {
-        setCurrentPanel('navigation');
-        navigateTo('Nearest Restaurant');
-        speak('Displaying nearby restaurants');
-        commandRecognized = true;
-      } else if (fuzzyMatch(command, ['hospital', 'medical', 'emergency'])) {
-        setCurrentPanel('navigation');
-        navigateTo('Nearest Hospital');
-        speak('Navigating to the nearest hospital');
-        commandRecognized = true;
-      }
-    }
-    
-    // Phone/Contacts Panel
-    else if (command.includes('show contacts') || command.includes('open contacts') || command.includes('phone') || command.includes('go to contacts') || command.includes('go to phone') || command.includes('contacts panel')) {
-      setCurrentPanel('phone');
-      speak('Opening contacts panel');
-      commandRecognized = true;
-    }
-    // Call commands
-    else if (command.includes('call')) {
-      const names = ['John Doe', 'Jane Smith', 'Bob Wilson', 'Alice Brown'];
-      const foundName = names.find(name => 
-        command.includes(name.toLowerCase())
-      );
-      if (foundName) {
-        setCurrentPanel('phone');
-        callContact(foundName);
-        speak(`Calling ${foundName}`);
-        commandRecognized = true;
-      }
-    } else if (
-      fuzzyMatch(command, ['answer call', 'answer', 'pick up', 'take call']) ||
-      command.includes('answer')
-    ) {
-      console.log('✅ Answer call command recognized');
-      answerCall();
-      speak('Call answered');
-      commandRecognized = true;
-    } else if (
-      fuzzyMatch(command, ['reject call', 'decline call', 'ignore call', 'hang up', 'reject']) ||
-      (command.includes('reject') || command.includes('decline') || command.includes('hang'))
-    ) {
-      console.log('✅ Reject call command recognized');
-      rejectCall();
-      speak('Call rejected');
-      commandRecognized = true;
-    }
-    
-    // Climate Control Panel
-    else if (command.includes('adjust climate') || command.includes('climate control') || command.includes('open climate') || command.includes('go to climate') || command.includes('climate panel')) {
-      setCurrentPanel('climate');
-      speak('Opening climate control panel');
-      commandRecognized = true;
-    }
-    // Climate commands
-    else if (command.includes('turn on ac') || command.includes('air conditioning on')) {
-      setCurrentPanel('climate');
-      toggleAC();
-      speak('Air conditioning turned on');
-      commandRecognized = true;
-    } else if (command.includes('set temperature')) {
+    // Special handling for set temperature
+    if (command.includes('set temperature')) {
       const tempMatch = command.match(/(\d+)/);
       if (tempMatch) {
         const temp = parseInt(tempMatch[1]);
         setCurrentPanel('climate');
         setTemperature(temp);
         speak(`Temperature set to ${temp} degrees`);
-        commandRecognized = true;
+        addCommand('voice', command);
+        toast({
+          title: "🎤 Voice Command",
+          description: `Set temperature to ${temp}°`,
+          duration: 2000,
+        });
+        return;
       }
     }
     
-    // Dashboard - Enhanced fuzzy matching
-    else if (
-      fuzzyMatch(command, ['dashboard', 'go to dashboard', 'return to dashboard', 'back to home', 'go home', 'home screen', 'main screen']) ||
-      command.includes('dashboard') ||
-      (command.includes('go') && command.includes('home')) ||
-      (command.includes('back') && (command.includes('home') || command.includes('main')))
-    ) {
-      console.log('✅ Dashboard command recognized');
-      setCurrentPanel('dashboard');
-      speak('Returning to main dashboard');
-      commandRecognized = true;
-    }
-    // Vehicle info
-    else if (command.includes('vehicle info') || command.includes('car info')) {
-      setCurrentPanel('vehicle');
-      speak('Opening vehicle information');
-      commandRecognized = true;
+    // Special handling for call contacts
+    if (command.includes('call')) {
+      const names = ['john doe', 'jane smith', 'bob wilson', 'alice brown'];
+      const foundName = names.find(name => command.includes(name));
+      if (foundName) {
+        const displayName = foundName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+        setCurrentPanel('phone');
+        callContact(displayName);
+        speak(`Calling ${displayName}`);
+        addCommand('voice', command);
+        toast({
+          title: "🎤 Voice Command",
+          description: `Calling ${displayName}`,
+          duration: 2000,
+        });
+        return;
+      }
     }
     
-    // If no command was recognized
-    if (!commandRecognized) {
-      console.log('❌ Command not recognized:', command, '| Confidence:', confidence.toFixed(2));
-      
-      // If confidence is moderate (0.5-0.75), ask for confirmation
-      if (confidence >= 0.5 && confidence < 0.75) {
-        speak(`Did you say ${command}? Please try again more clearly.`);
-      } else {
-        speak("Sorry, I didn't catch that. Please say that again.");
-      }
-      
+    // Get command patterns and find matches
+    const patterns = buildCommandPatterns();
+    const matches = getTopMatches(command, patterns, confidence);
+    
+    console.log('📊 Top matches:', matches.map(m => `${m.command} (${(m.confidence * 100).toFixed(0)}%)`).join(', '));
+    
+    if (matches.length === 0) {
+      console.log('❌ No matches found for:', command);
+      speak("Sorry, I didn't catch that. Please try again or say 'list all commands' for help.");
       toast({
         title: "⚠️ Command Not Recognized",
         description: "Say 'list all commands' for help",
         variant: "destructive",
         duration: 3000,
       });
-    } else {
-      // Only add to command log if recognized
-      console.log('✅ Command executed successfully:', command);
+      return;
+    }
+    
+    // Auto-execute if high confidence, otherwise show selection UI
+    if (shouldAutoExecute(matches)) {
+      const topMatch = matches[0];
+      console.log('✅ Auto-executing command:', topMatch.command, '| Confidence:', (topMatch.confidence * 100).toFixed(0) + '%');
+      topMatch.action();
       addCommand('voice', command);
       toast({
         title: "🎤 Voice Command",
-        description: command,
+        description: topMatch.command,
         duration: 2000,
       });
+    } else {
+      console.log('🔍 Showing command selection UI with', matches.length, 'matches');
+      setCommandMatches(matches);
     }
   };
 
-  return null;
+  const handleCommandSelection = (match: CommandMatch) => {
+    console.log('✅ User selected:', match.command);
+    match.action();
+    addCommand('voice', match.command);
+    toast({
+      title: "🎤 Voice Command",
+      description: match.command,
+      duration: 2000,
+    });
+    setCommandMatches([]);
+  };
+
+  const handleCommandCancel = () => {
+    console.log('❌ User cancelled command selection');
+    speak("Command cancelled. Please try again.");
+    setCommandMatches([]);
+  };
+
+  return (
+    <>
+      <VoiceCommandMatcher
+        matches={commandMatches}
+        onSelect={handleCommandSelection}
+        onCancel={handleCommandCancel}
+      />
+    </>
+  );
 };
