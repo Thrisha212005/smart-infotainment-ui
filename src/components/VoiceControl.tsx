@@ -5,16 +5,27 @@ import { useNavigation } from '@/contexts/NavigationContext';
 import { usePhone } from '@/contexts/PhoneContext';
 import { useClimate } from '@/contexts/ClimateContext';
 import { toast } from '@/hooks/use-toast';
+import { VoiceRecognitionOverlay } from './VoiceRecognitionOverlay';
 
 export const VoiceControl: React.FC = () => {
-  const { voiceEnabled, addCommand, setCurrentPanel, speak, toggleDarkMode } = useInfotainment();
-  const { nextSong, previousSong, togglePlay, setVolume, isPlaying } = useMusicPlayer();
-  const { navigateTo } = useNavigation();
+  const { 
+    voiceEnabled, 
+    addCommand, 
+    setCurrentPanel, 
+    speak, 
+    voiceOverlayActive, 
+    setVoiceOverlayActive,
+    setLastInputType 
+  } = useInfotainment();
+  const { nextSong, previousSong, togglePlay, setVolume, isPlaying, volume } = useMusicPlayer();
+  const { navigateTo, destinations } = useNavigation();
   const { callContact, answerCall, rejectCall } = usePhone();
-  const { setTemperature, setFanSpeed, toggleAC } = useClimate();
+  const { setTemperature, setFanSpeed, toggleAC, isACOn } = useClimate();
   
   const recognitionRef = useRef<any>(null);
-  const [lastCommand, setLastCommand] = useState<string>('');
+  const [recognizedText, setRecognizedText] = useState<string>('');
+  const [isListening, setIsListening] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   useEffect(() => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -27,30 +38,36 @@ export const VoiceControl: React.FC = () => {
     const recognition = new SpeechRecognition();
     
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.lang = 'en-US';
     recognition.maxAlternatives = 3;
 
     recognition.onstart = () => {
       console.log('Voice recognition started');
+      setIsListening(true);
     };
 
     recognition.onresult = (event: any) => {
       const last = event.results.length - 1;
       const result = event.results[last];
       
-      // Process immediately without waiting
-      const transcript = result[0].transcript;
-      const confidence = result[0].confidence;
-      
-      // Normalize command: lowercase, trim, remove punctuation
-      const command = transcript.toLowerCase().trim().replace(/[.,!?;:]/g, '');
-      
-      console.log('✅ Voice command detected:', command, '| Confidence:', confidence.toFixed(2));
-      setLastCommand(command);
-      
-      // Process immediately
-      processVoiceCommand(command, confidence);
+      if (result.isFinal) {
+        const transcript = result[0].transcript;
+        const confidence = result[0].confidence;
+        const command = transcript.toLowerCase().trim().replace(/[.,!?;:]/g, '');
+        
+        console.log('✅ Voice command detected:', command, '| Confidence:', confidence.toFixed(2));
+        setRecognizedText(transcript);
+        
+        // Process immediately
+        setTimeout(() => {
+          processVoiceCommand(command, confidence);
+        }, 100);
+      } else {
+        // Show interim results
+        const transcript = result[0].transcript;
+        setRecognizedText(transcript);
+      }
     };
 
     recognition.onerror = (event: any) => {
@@ -60,11 +77,13 @@ export const VoiceControl: React.FC = () => {
       } else if (event.error === 'no-speech') {
         console.log('No speech detected, continuing to listen...');
       }
+      setIsListening(false);
     };
 
     recognition.onend = () => {
+      setIsListening(false);
       // Restart if voice is still enabled
-      if (voiceEnabled && recognitionRef.current) {
+      if (voiceEnabled && recognitionRef.current && voiceOverlayActive) {
         try {
           recognitionRef.current.start();
         } catch (e) {
@@ -84,101 +103,65 @@ export const VoiceControl: React.FC = () => {
         }
       }
     };
-  }, [voiceEnabled]);
+  }, [voiceEnabled, voiceOverlayActive]);
 
   useEffect(() => {
-    if (voiceEnabled && recognitionRef.current) {
+    if (voiceEnabled && voiceOverlayActive && recognitionRef.current) {
       try {
         recognitionRef.current.start();
-        speak('Voice control activated. Listening for commands.');
         console.log('Starting voice recognition');
       } catch (e) {
         console.log('Recognition start error:', e);
       }
-    } else if (!voiceEnabled && recognitionRef.current) {
+    } else if ((!voiceEnabled || !voiceOverlayActive) && recognitionRef.current) {
       try {
         recognitionRef.current.stop();
+        setRecognizedText('');
+        setSuggestions([]);
         console.log('Stopping voice recognition');
       } catch (e) {
         console.log('Recognition stop error:', e);
       }
     }
-  }, [voiceEnabled]);
+  }, [voiceEnabled, voiceOverlayActive]);
 
-  const fuzzyMatch = (command: string, keywords: string[]): boolean => {
-    return keywords.some(keyword => command.includes(keyword));
+  const closeOverlay = () => {
+    setVoiceOverlayActive(false);
+    setRecognizedText('');
+    setSuggestions([]);
   };
 
   const processVoiceCommand = (command: string, confidence: number = 1.0) => {
     let commandRecognized = false;
+    setLastInputType('voice');
     
-    // Log for debugging
     console.log('🎤 Processing command:', command, '| Confidence:', confidence.toFixed(2));
 
-    // Help command - List all commands
+    // Help command - List all commands (slower rate)
     if (command.includes('list all commands') || command.includes('what can i say') || command.includes('help')) {
-      const commandList = `
-🎵 Music Commands:
-• Play music - Opens music player and starts playback
-• Pause music or Stop music - Pauses the music
-• Next song or Play next - Plays the next song
-• Previous song or Play previous - Plays the previous song
-• Increase volume or Volume up - Increases volume
-• Decrease volume or Volume down - Decreases volume
-• Open music or Music panel - Opens music panel
-
-🗺️ Navigation Commands:
-• Open navigation or Show navigation - Opens navigation panel
-• Navigate to home or Go home - Navigates to home location
-• Navigate to work or Go to work - Navigates to work location
-• Find nearest fuel station or Gas station - Finds nearest fuel station
-• Find nearest coffee shop - Finds nearest coffee shop
-• Find nearest restaurant - Finds nearest restaurant
-• Find nearest hospital - Finds nearest hospital
-
-📞 Phone Commands:
-• Show contacts or Open contacts - Opens contacts panel
-• Call [contact name] - Calls a specific contact (John Doe, Jane Smith, Bob Wilson, Alice Brown)
-• Answer call - Answers incoming call
-• Reject call or Decline call - Rejects incoming call
-
-❄️ Climate Commands:
-• Adjust climate or Climate control - Opens climate control panel
-• Turn on AC or Air conditioning on - Turns on AC
-• Set temperature [number] - Sets temperature to specified degrees
-
-🚗 System Commands:
-• Go to dashboard or Return to dashboard or Back to home - Returns to main dashboard
-• Vehicle info or Car info - Opens vehicle information
-• List all commands or What can I say or Help - Shows this help menu
-      `.trim();
-
-      toast({
-        title: "🎤 Available Voice Commands",
-        description: "Check console for full list",
-        duration: 5000,
-      });
-
-      console.log(commandList);
-      speak('Here are all available voice commands. Music commands: play music, pause music, next song, previous song, volume up, volume down. Navigation commands: open navigation, navigate to home, work, fuel station, coffee shop, restaurant, or hospital. Phone commands: show contacts, call contact name, answer call, reject call. Climate commands: adjust climate, turn on AC, set temperature. System commands: go to dashboard, go to vehicle info, and list all commands.');
+      const commandList = `Music commands: play music, pause music, next song, previous song, increase volume, decrease volume. Navigation commands: navigate to home, work, fuel station, coffee shop, restaurant, hospital, shopping mall, or gym. Phone commands: show contacts, call contact name, answer call, reject call. Climate commands: turn on AC, turn off AC, set fan speed to 1 through 5, set temperature. System commands: go to dashboard, vehicle info, list all commands.`;
+      
+      speak(commandList, 0.8); // Slower speech rate
       commandRecognized = true;
+      closeOverlay();
     }
-    
-    // Music commands - Open Music Panel
+    // Music Panel
     else if (command.includes('open music') || command.includes('go to music') || command.includes('music panel')) {
       setCurrentPanel('music');
       speak('Opening music panel');
       commandRecognized = true;
+      closeOverlay();
     }
     // Play Music
-    else if (command.includes('play music')) {
+    else if (command.includes('play music') || command.includes('start music')) {
       setCurrentPanel('music');
       if (!isPlaying) togglePlay();
-      speak('Opening music player and starting playback');
+      speak('Playing music');
       commandRecognized = true;
+      closeOverlay();
     }
     // Pause Music
-    else if (command.includes('pause music') || command.includes('stop music')) {
+    else if (command.includes('pause') || command.includes('stop music') || command.includes('halt music')) {
       if (isPlaying) {
         togglePlay();
         speak('Music paused');
@@ -186,134 +169,166 @@ export const VoiceControl: React.FC = () => {
         speak('Music is already paused');
       }
       commandRecognized = true;
+      closeOverlay();
     }
-    // Music navigation - Enhanced matching
+    // Music navigation
     else if (
       command.includes('next song') || 
       command.includes('play next') || 
       command.includes('skip') ||
-      (command.includes('next') && (command.includes('song') || command.includes('track')))
+      command.includes('next track')
     ) {
-      console.log('✅ Next song command recognized');
       nextSong();
       speak('Playing next song');
       commandRecognized = true;
+      closeOverlay();
     } else if (
       command.includes('previous song') || 
       command.includes('play previous') ||
       command.includes('go back') ||
-      (command.includes('previous') && (command.includes('song') || command.includes('track')))
+      command.includes('previous track')
     ) {
-      console.log('✅ Previous song command recognized');
       previousSong();
       speak('Playing previous song');
       commandRecognized = true;
+      closeOverlay();
     }
-    // Volume control
-    else if (command.includes('increase volume') || command.includes('volume up')) {
-      setVolume(prev => Math.min(100, prev + 20));
-      speak('Volume increased');
+    // Volume control - smooth adjustments
+    else if (command.includes('increase volume') || command.includes('volume up') || command.includes('louder')) {
+      const newVolume = Math.min(100, volume + 10);
+      setVolume(newVolume);
+      speak(`Volume set to ${newVolume} percent`);
       commandRecognized = true;
-    } else if (command.includes('decrease volume') || command.includes('volume down')) {
-      setVolume(prev => Math.max(0, prev - 20));
-      speak('Volume decreased');
+      closeOverlay();
+    } else if (command.includes('decrease volume') || command.includes('volume down') || command.includes('quieter')) {
+      const newVolume = Math.max(0, volume - 10);
+      setVolume(newVolume);
+      speak(`Volume set to ${newVolume} percent`);
       commandRecognized = true;
+      closeOverlay();
     }
-    
     // Navigation Panel
-    else if (command.includes('open navigation') || command.includes('show navigation') || command.includes('go to navigation') || command.includes('navigation panel')) {
+    else if (command.includes('open navigation') || command.includes('show navigation') || command.includes('navigation panel')) {
       setCurrentPanel('navigation');
       speak('Opening navigation panel');
       commandRecognized = true;
+      closeOverlay();
     }
-    // Specific navigation destinations
-    else if (fuzzyMatch(command, ['navigate to', 'go to', 'go home', 'navigate home'])) {
-      if (command.includes('home')) {
+    // Navigation destinations with fuzzy matching
+    else if (
+      command.includes('navigate') || 
+      command.includes('go to') || 
+      command.includes('find') ||
+      command.includes('show route')
+    ) {
+      const destinationMap: { [key: string]: string } = {
+        'home': 'Home',
+        'work': 'Work',
+        'fuel': 'Nearest Fuel Station',
+        'gas': 'Nearest Fuel Station',
+        'petrol': 'Nearest Fuel Station',
+        'coffee': 'Nearest Coffee Shop',
+        'cafe': 'Nearest Coffee Shop',
+        'restaurant': 'Nearest Restaurant',
+        'food': 'Nearest Restaurant',
+        'hospital': 'Nearest Hospital',
+        'medical': 'Nearest Hospital',
+        'shopping': 'Nearest Shopping Mall',
+        'mall': 'Nearest Shopping Mall',
+        'gym': 'Gym',
+      };
+
+      let foundDestination = null;
+      for (const [key, dest] of Object.entries(destinationMap)) {
+        if (command.includes(key)) {
+          foundDestination = dest;
+          break;
+        }
+      }
+
+      if (foundDestination) {
         setCurrentPanel('navigation');
-        navigateTo('Home');
-        speak('Navigating to home');
+        navigateTo(foundDestination);
+        speak(`Navigating to ${foundDestination}`);
         commandRecognized = true;
-      } else if (command.includes('work')) {
-        setCurrentPanel('navigation');
-        navigateTo('Work');
-        speak('Navigating to work');
-        commandRecognized = true;
+        closeOverlay();
       }
     }
-    // Find nearest destinations
-    else if (fuzzyMatch(command, ['find nearest', 'nearest', 'find', 'show'])) {
-      if (fuzzyMatch(command, ['fuel', 'gas', 'gas station', 'petrol'])) {
-        setCurrentPanel('navigation');
-        navigateTo('Nearest Fuel Station');
-        speak('Finding nearest fuel station');
-        commandRecognized = true;
-      } else if (fuzzyMatch(command, ['coffee', 'coffee shop', 'cafe'])) {
-        setCurrentPanel('navigation');
-        navigateTo('Nearest Coffee Shop');
-        speak('Showing route to the nearest coffee shop');
-        commandRecognized = true;
-      } else if (fuzzyMatch(command, ['restaurant', 'food', 'dining', 'eat'])) {
-        setCurrentPanel('navigation');
-        navigateTo('Nearest Restaurant');
-        speak('Displaying nearby restaurants');
-        commandRecognized = true;
-      } else if (fuzzyMatch(command, ['hospital', 'medical', 'emergency'])) {
-        setCurrentPanel('navigation');
-        navigateTo('Nearest Hospital');
-        speak('Navigating to the nearest hospital');
-        commandRecognized = true;
-      }
-    }
-    
     // Phone/Contacts Panel
-    else if (command.includes('show contacts') || command.includes('open contacts') || command.includes('phone') || command.includes('go to contacts') || command.includes('go to phone') || command.includes('contacts panel')) {
+    else if (command.includes('show contacts') || command.includes('open contacts') || command.includes('phone') || command.includes('contacts panel')) {
       setCurrentPanel('phone');
       speak('Opening contacts panel');
       commandRecognized = true;
+      closeOverlay();
     }
     // Call commands
     else if (command.includes('call')) {
-      const names = ['John Doe', 'Jane Smith', 'Bob Wilson', 'Alice Brown'];
-      const foundName = names.find(name => 
-        command.includes(name.toLowerCase())
-      );
+      const names = ['john doe', 'jane smith', 'bob wilson', 'alice brown'];
+      const foundName = names.find(name => command.includes(name));
       if (foundName) {
+        const properName = foundName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
         setCurrentPanel('phone');
-        callContact(foundName);
-        speak(`Calling ${foundName}`);
+        callContact(properName);
+        speak(`Calling ${properName}`);
         commandRecognized = true;
+        closeOverlay();
       }
-    } else if (
-      fuzzyMatch(command, ['answer call', 'answer', 'pick up', 'take call']) ||
-      command.includes('answer')
-    ) {
-      console.log('✅ Answer call command recognized');
+    } else if (command.includes('answer') || command.includes('pick up') || command.includes('take call')) {
       answerCall();
       speak('Call answered');
       commandRecognized = true;
-    } else if (
-      fuzzyMatch(command, ['reject call', 'decline call', 'ignore call', 'hang up', 'reject']) ||
-      (command.includes('reject') || command.includes('decline') || command.includes('hang'))
-    ) {
-      console.log('✅ Reject call command recognized');
+      closeOverlay();
+    } else if (command.includes('reject') || command.includes('decline') || command.includes('hang up')) {
       rejectCall();
       speak('Call rejected');
       commandRecognized = true;
+      closeOverlay();
     }
-    
     // Climate Control Panel
-    else if (command.includes('adjust climate') || command.includes('climate control') || command.includes('open climate') || command.includes('go to climate') || command.includes('climate panel')) {
+    else if (command.includes('climate control') || command.includes('open climate') || command.includes('adjust climate')) {
       setCurrentPanel('climate');
       speak('Opening climate control panel');
       commandRecognized = true;
+      closeOverlay();
     }
-    // Climate commands
-    else if (command.includes('turn on ac') || command.includes('air conditioning on')) {
+    // AC commands - fixed logic
+    else if (command.includes('turn on ac') || command.includes('air conditioning on') || command.includes('ac on')) {
       setCurrentPanel('climate');
-      toggleAC();
-      speak('Air conditioning turned on');
+      if (!isACOn) {
+        toggleAC();
+        speak('Air conditioning turned on');
+      } else {
+        speak('Air conditioning is already on');
+      }
       commandRecognized = true;
-    } else if (command.includes('set temperature')) {
+      closeOverlay();
+    } else if (command.includes('turn off ac') || command.includes('air conditioning off') || command.includes('ac off')) {
+      setCurrentPanel('climate');
+      if (isACOn) {
+        toggleAC();
+        speak('Air conditioning turned off');
+      } else {
+        speak('Air conditioning is already off');
+      }
+      commandRecognized = true;
+      closeOverlay();
+    }
+    // Fan speed control
+    else if (command.includes('set fan speed') || command.includes('fan speed')) {
+      const speedMatch = command.match(/(\d+)/);
+      if (speedMatch) {
+        const speed = parseInt(speedMatch[1]);
+        if (speed >= 1 && speed <= 5) {
+          setCurrentPanel('climate');
+          setFanSpeed(speed);
+          speak(`Fan speed set to level ${speed}`);
+          commandRecognized = true;
+          closeOverlay();
+        }
+      }
+    }
+    // Temperature control
+    else if (command.includes('set temperature')) {
       const tempMatch = command.match(/(\d+)/);
       if (tempMatch) {
         const temp = parseInt(tempMatch[1]);
@@ -321,49 +336,50 @@ export const VoiceControl: React.FC = () => {
         setTemperature(temp);
         speak(`Temperature set to ${temp} degrees`);
         commandRecognized = true;
+        closeOverlay();
       }
     }
-    
-    // Dashboard - Enhanced fuzzy matching
+    // Dashboard - enhanced matching with state awareness
     else if (
-      fuzzyMatch(command, ['dashboard', 'go to dashboard', 'return to dashboard', 'back to home', 'go home', 'home screen', 'main screen']) ||
       command.includes('dashboard') ||
-      (command.includes('go') && command.includes('home')) ||
-      (command.includes('back') && (command.includes('home') || command.includes('main')))
+      command.includes('go dash') ||
+      command.includes('show dash') ||
+      command.includes('main screen') ||
+      command.includes('home screen') ||
+      (command.includes('go') && command.includes('home') && !command.includes('navigate'))
     ) {
-      console.log('✅ Dashboard command recognized');
       setCurrentPanel('dashboard');
-      speak('Returning to main dashboard');
+      speak('Returning to dashboard');
       commandRecognized = true;
+      closeOverlay();
     }
     // Vehicle info
-    else if (command.includes('vehicle info') || command.includes('car info')) {
+    else if (command.includes('vehicle info') || command.includes('car info') || command.includes('vehicle panel')) {
       setCurrentPanel('vehicle');
       speak('Opening vehicle information');
       commandRecognized = true;
+      closeOverlay();
     }
     
     // If no command was recognized
     if (!commandRecognized) {
       console.log('❌ Command not recognized:', command, '| Confidence:', confidence.toFixed(2));
       
-      // If confidence is moderate (0.5-0.75), ask for confirmation
-      if (confidence >= 0.5 && confidence < 0.75) {
-        speak(`Did you say ${command}? Please try again more clearly.`);
+      // Show suggestion if confidence is moderate
+      if (confidence >= 0.5) {
+        setSuggestions([`"${command}"`]);
+        speak(`Did you mean ${command}?`);
       } else {
-        speak("Sorry, I didn't catch that. Please say that again.");
+        speak("Sorry, I didn't catch that. Please try again.");
+        setTimeout(() => {
+          setRecognizedText('');
+        }, 2000);
       }
-      
-      toast({
-        title: "⚠️ Command Not Recognized",
-        description: "Say 'list all commands' for help",
-        variant: "destructive",
-        duration: 3000,
-      });
     } else {
-      // Only add to command log if recognized
+      // Command executed successfully
       console.log('✅ Command executed successfully:', command);
       addCommand('voice', command);
+      
       toast({
         title: "🎤 Voice Command",
         description: command,
@@ -372,5 +388,20 @@ export const VoiceControl: React.FC = () => {
     }
   };
 
-  return null;
+  const handleSuggestionSelect = (suggestion: string) => {
+    // User can confirm or try again
+    setSuggestions([]);
+    setRecognizedText('');
+  };
+
+  return (
+    <VoiceRecognitionOverlay
+      isActive={voiceOverlayActive}
+      onClose={closeOverlay}
+      recognizedText={recognizedText}
+      isListening={isListening}
+      suggestions={suggestions}
+      onSelectSuggestion={handleSuggestionSelect}
+    />
+  );
 };

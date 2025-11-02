@@ -13,7 +13,7 @@ const destinations = [
   'Nearest Coffee Shop',
   'Nearest Restaurant',
   'Nearest Hospital',
-  'Shopping Mall',
+  'Nearest Shopping Mall',
   'Gym',
 ];
 

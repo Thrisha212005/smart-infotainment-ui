@@ -6,8 +6,8 @@ import { GestureRecognizer, FilesetResolver, DrawingUtils } from '@mediapipe/tas
 import { toast } from '@/hooks/use-toast';
 
 export const GestureControl: React.FC = () => {
-  const { gestureEnabled, addCommand, setCurrentPanel, speak } = useInfotainment();
-  const { nextSong, previousSong, togglePlay, setVolume, isPlaying } = useMusicPlayer();
+  const { gestureEnabled, addCommand, setCurrentPanel, speak, setLastInputType } = useInfotainment();
+  const { nextSong, previousSong, togglePlay, setVolume, isPlaying, volume } = useMusicPlayer();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cameraActive, setCameraActive] = useState(false);
@@ -15,6 +15,9 @@ export const GestureControl: React.FC = () => {
   const gestureRecognizerRef = useRef<GestureRecognizer | null>(null);
   const lastGestureRef = useRef<string>('');
   const lastGestureTimeRef = useRef<number>(0);
+  const gestureConfirmationRef = useRef<{ gesture: string; count: number }>({ gesture: '', count: 0 });
+  const [isPlayingMusic, setIsPlayingMusic] = useState(false);
+  const [volumeControlActive, setVolumeControlActive] = useState(false);
 
   useEffect(() => {
     if (gestureEnabled) {
@@ -89,10 +92,54 @@ export const GestureControl: React.FC = () => {
           lineWidth: 1,
           radius: 3
         });
+
+        // Thumb-index volume control
+        const thumbTip = landmarks[4];
+        const indexTip = landmarks[8];
+        
+        if (thumbTip && indexTip) {
+          const distance = Math.sqrt(
+            Math.pow((thumbTip.x - indexTip.x) * canvas.width, 2) +
+            Math.pow((thumbTip.y - indexTip.y) * canvas.height, 2)
+          );
+
+          // Draw line between fingertips
+          ctx.beginPath();
+          ctx.moveTo(thumbTip.x * canvas.width, thumbTip.y * canvas.height);
+          ctx.lineTo(indexTip.x * canvas.width, indexTip.y * canvas.height);
+          ctx.strokeStyle = '#FFD700';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+
+          // Calculate volume (distance range: 20-200 pixels)
+          const minDistance = 20;
+          const maxDistance = 200;
+          const normalizedDistance = Math.max(minDistance, Math.min(maxDistance, distance));
+          const volumeLevel = Math.round(((normalizedDistance - minDistance) / (maxDistance - minDistance)) * 100);
+
+          // Update volume smoothly
+          if (Math.abs(distance - 50) < 150) { // Active zone
+            setVolumeControlActive(true);
+            setVolume(volumeLevel);
+            
+            // Display volume indicator
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(10, 10, 200, 60);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = '20px Arial';
+            ctx.fillText(`Volume: ${volumeLevel}%`, 20, 35);
+            
+            // Volume bar
+            ctx.fillStyle = '#FFD700';
+            ctx.fillRect(20, 45, (volumeLevel / 100) * 180, 15);
+          } else {
+            setVolumeControlActive(false);
+          }
+        }
       }
     }
 
-    if (results.gestures && results.gestures.length > 0) {
+    if (results.gestures && results.gestures.length > 0 && !volumeControlActive) {
       processDetectedGesture(results.gestures[0][0].categoryName);
     }
 
@@ -100,23 +147,35 @@ export const GestureControl: React.FC = () => {
   };
 
   const processDetectedGesture = (gesture: string) => {
-    // Filter out "None" gestures to reduce noise
+    // Filter out "None" gestures
     if (gesture === 'None' || !gesture) {
+      gestureConfirmationRef.current = { gesture: '', count: 0 };
+      return;
+    }
+
+    // 3-frame confirmation for accuracy
+    if (gestureConfirmationRef.current.gesture === gesture) {
+      gestureConfirmationRef.current.count++;
+    } else {
+      gestureConfirmationRef.current = { gesture, count: 1 };
+      return;
+    }
+
+    if (gestureConfirmationRef.current.count < 3) {
       return;
     }
 
     const now = Date.now();
     
-    // Reduced debounce for music controls, normal for others
-    const isMusicControl = gesture === 'Pointing_Right' || gesture === 'Pointing_Left';
-    const debounceTime = isMusicControl ? 500 : 1000;
-    
-    if (gesture === lastGestureRef.current && now - lastGestureTimeRef.current < debounceTime) {
+    // Cooldown to prevent double triggering (0.5s)
+    if (gesture === lastGestureRef.current && now - lastGestureTimeRef.current < 500) {
       return;
     }
 
     lastGestureRef.current = gesture;
     lastGestureTimeRef.current = now;
+    gestureConfirmationRef.current = { gesture: '', count: 0 };
+    setLastInputType('gesture');
 
     console.log('✋ Gesture detected:', gesture);
     addCommand('gesture', `${gesture}`);
@@ -134,20 +193,23 @@ export const GestureControl: React.FC = () => {
         break;
         
       case 'Thumb_Down':
-        // Pause Music
-        if (isPlaying) {
+        // Dynamic Play/Pause Toggle
+        if (isPlayingMusic) {
           togglePlay();
           speak('Music paused');
-          actionMessage = 'Music Paused';
+          actionMessage = '⏸️ Music Paused';
+          setIsPlayingMusic(false);
         } else {
-          speak('Music is already paused');
-          actionMessage = 'Music Already Paused';
+          togglePlay();
+          speak('Playing music');
+          actionMessage = '▶️ Music Playing';
+          setIsPlayingMusic(true);
         }
         actionTaken = true;
         break;
       
       case 'Pointing_Right':
-        // Next Song
+        // Next Song (backhand index pointing right)
         nextSong();
         speak('Playing next song');
         actionMessage = 'Next Song';
@@ -155,7 +217,7 @@ export const GestureControl: React.FC = () => {
         break;
       
       case 'Pointing_Left':
-        // Previous Song
+        // Previous Song (backhand index pointing left)
         previousSong();
         speak('Playing previous song');
         actionMessage = 'Previous Song';
@@ -163,7 +225,7 @@ export const GestureControl: React.FC = () => {
         break;
         
       case 'Victory':
-        // Open Navigation Panel (two-finger gesture)
+        // Open Navigation Panel
         setCurrentPanel('navigation');
         speak('Opening navigation panel');
         actionMessage = 'Opening Navigation';
@@ -171,14 +233,14 @@ export const GestureControl: React.FC = () => {
         break;
         
       case 'Open_Palm':
-        // Return to Dashboard (hand wave)
+        // Return to Dashboard
         setCurrentPanel('dashboard');
         speak('Returning to dashboard');
         actionMessage = 'Back to Dashboard';
         actionTaken = true;
         break;
         
-      case 'Closed_Fist':
+      case 'ILoveYou':
         // Open Contacts/Phone Panel
         setCurrentPanel('phone');
         speak('Opening contacts');
@@ -194,8 +256,8 @@ export const GestureControl: React.FC = () => {
         actionTaken = true;
         break;
         
-      case 'ILoveYou':
-        // Open Vehicle Info
+      case 'Closed_Fist':
+        // Open Vehicle Info (fist gesture 👊)
         setCurrentPanel('vehicle');
         speak('Opening vehicle information');
         actionMessage = 'Vehicle Info';
@@ -204,7 +266,6 @@ export const GestureControl: React.FC = () => {
         
       default:
         console.log('⚠️ Unknown gesture:', gesture);
-        speak(`Unknown gesture: ${gesture}`);
         actionMessage = 'Unknown Gesture';
         break;
     }
@@ -242,8 +303,6 @@ export const GestureControl: React.FC = () => {
     }
   };
 
-
-
   if (!gestureEnabled) {
     return (
       <div className="glass rounded-2xl p-6 h-full flex items-center justify-center">
@@ -270,8 +329,9 @@ export const GestureControl: React.FC = () => {
       <div className="absolute bottom-4 left-4 right-4 z-10 glass px-4 py-3 rounded-xl">
         <div className="text-xs text-muted-foreground text-center space-y-1">
           <p className="font-semibold">Gesture Commands:</p>
-          <p>👍 Music Panel | 👎 Pause Music | 👉 Next Song | 👈 Previous Song</p>
-          <p>✌️ Navigation | ✋ Dashboard | ✊ Contacts | ☝️ Climate | 🤟 Vehicle Info</p>
+          <p>👍 Music | 👎 Play/Pause Toggle | 👉 Next | 👈 Previous</p>
+          <p>✌️ Navigation | ✋ Dashboard | 🤟 Contacts | ☝️ Climate | 👊 Vehicle</p>
+          <p>👌 Thumb-Index Distance: Volume Control</p>
         </div>
       </div>
       

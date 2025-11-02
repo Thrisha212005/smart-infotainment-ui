@@ -12,8 +12,16 @@ export const ControlBar: React.FC = () => {
     gestureEnabled, 
     setGestureEnabled,
     isDarkMode,
-    toggleDarkMode 
+    toggleDarkMode,
+    setVoiceOverlayActive 
   } = useInfotainment();
+
+  const handleVoiceClick = () => {
+    if (!voiceEnabled) {
+      setVoiceEnabled(true);
+    }
+    setVoiceOverlayActive(true);
+  };
 
   return (
     <div className="glass rounded-2xl p-4 flex items-center justify-between">
@@ -30,18 +38,18 @@ export const ControlBar: React.FC = () => {
         <Button
           variant={voiceEnabled ? 'default' : 'secondary'}
           size="lg"
-          onClick={() => setVoiceEnabled(!voiceEnabled)}
+          onClick={handleVoiceClick}
           className="rounded-xl"
         >
           {voiceEnabled ? (
             <>
               <Mic className="w-5 h-5 mr-2" />
-              Voice ON
+              Voice
             </>
           ) : (
             <>
-              <MicOff className="w-5 h-5 mr-2" />
-              Voice OFF
+              <Mic className="w-5 h-5 mr-2" />
+              Voice
             </>
           )}
         </Button>

@@ -18,7 +18,11 @@ interface InfotainmentContextType {
   toggleDarkMode: () => void;
   commands: Command[];
   addCommand: (type: 'voice' | 'gesture', command: string) => void;
-  speak: (text: string) => void;
+  speak: (text: string, rate?: number) => void;
+  voiceOverlayActive: boolean;
+  setVoiceOverlayActive: (active: boolean) => void;
+  lastInputType: 'voice' | 'gesture' | null;
+  setLastInputType: (type: 'voice' | 'gesture' | null) => void;
 }
 
 const InfotainmentContext = createContext<InfotainmentContextType | undefined>(undefined);
@@ -29,6 +33,8 @@ export const InfotainmentProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [gestureEnabled, setGestureEnabled] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [commands, setCommands] = useState<Command[]>([]);
+  const [voiceOverlayActive, setVoiceOverlayActive] = useState(false);
+  const [lastInputType, setLastInputType] = useState<'voice' | 'gesture' | null>(null);
 
   const addCommand = useCallback((type: 'voice' | 'gesture', command: string) => {
     const newCommand: Command = {
@@ -40,10 +46,10 @@ export const InfotainmentProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setCommands(prev => [newCommand, ...prev].slice(0, 50)); // Keep last 50 commands
   }, []);
 
-  const speak = useCallback((text: string) => {
+  const speak = useCallback((text: string, rate: number = 1) => {
     if ('speechSynthesis' in window) {
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1;
+      utterance.rate = rate;
       utterance.pitch = 1;
       utterance.volume = 1;
       window.speechSynthesis.speak(utterance);
@@ -74,6 +80,10 @@ export const InfotainmentProvider: React.FC<{ children: React.ReactNode }> = ({ 
         commands,
         addCommand,
         speak,
+        voiceOverlayActive,
+        setVoiceOverlayActive,
+        lastInputType,
+        setLastInputType,
       }}
     >
       {children}
