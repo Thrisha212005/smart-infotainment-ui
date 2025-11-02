@@ -134,14 +134,14 @@ export const GestureControl: React.FC = () => {
         break;
         
       case 'Thumb_Down':
-        // Toggle Play/Pause Music
-        togglePlay();
+        // Pause Music
         if (isPlaying) {
+          togglePlay();
           speak('Music paused');
           actionMessage = 'Music Paused';
         } else {
-          speak('Playing music');
-          actionMessage = 'Playing Music';
+          speak('Music is already paused');
+          actionMessage = 'Music Already Paused';
         }
         actionTaken = true;
         break;
@@ -179,10 +179,10 @@ export const GestureControl: React.FC = () => {
         break;
         
       case 'Closed_Fist':
-        // Open Vehicle Info
-        setCurrentPanel('vehicle');
-        speak('Opening vehicle information');
-        actionMessage = 'Vehicle Info';
+        // Open Contacts/Phone Panel
+        setCurrentPanel('phone');
+        speak('Opening contacts');
+        actionMessage = 'Opening Contacts';
         actionTaken = true;
         break;
         
@@ -195,10 +195,10 @@ export const GestureControl: React.FC = () => {
         break;
         
       case 'ILoveYou':
-        // Open Contacts/Phone Panel
-        setCurrentPanel('phone');
-        speak('Opening contacts');
-        actionMessage = 'Opening Contacts';
+        // Open Vehicle Info
+        setCurrentPanel('vehicle');
+        speak('Opening vehicle information');
+        actionMessage = 'Vehicle Info';
         actionTaken = true;
         break;
         
@@ -270,8 +270,8 @@ export const GestureControl: React.FC = () => {
       <div className="absolute bottom-4 left-4 right-4 z-10 glass px-4 py-3 rounded-xl">
         <div className="text-xs text-muted-foreground text-center space-y-1">
           <p className="font-semibold">Gesture Commands:</p>
-          <p>👍 Music Panel | 👎 Play/Pause | 👉 Next Song | 👈 Previous Song</p>
-          <p>✌️ Navigation | ✋ Dashboard | 👊 Vehicle Info | ☝️ Climate | 🤟 Contacts</p>
+          <p>👍 Music Panel | 👎 Pause Music | 👉 Next Song | 👈 Previous Song</p>
+          <p>✌️ Navigation | ✋ Dashboard | ✊ Contacts | ☝️ Climate | 🤟 Vehicle Info</p>
         </div>
       </div>
       
