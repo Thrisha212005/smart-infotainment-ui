@@ -16,9 +16,9 @@ export const GestureControl: React.FC = () => {
   const lastGestureRef = useRef<string>('');
   const lastGestureTimeRef = useRef<number>(0);
   const gestureConfirmationRef = useRef<{ gesture: string; count: number }>({ gesture: '', count: 0 });
-  const [isPlayingMusic, setIsPlayingMusic] = useState(false);
   const [volumeControlActive, setVolumeControlActive] = useState(false);
   const micActivationGestureRef = useRef<{ detected: boolean; startTime: number }>({ detected: false, startTime: 0 });
+  const handPositionHistoryRef = useRef<{ x: number; timestamp: number }[]>([]);
 
   useEffect(() => {
     if (gestureEnabled) {
@@ -93,6 +93,66 @@ export const GestureControl: React.FC = () => {
           lineWidth: 1,
           radius: 3
         });
+
+        // Track hand position for swipe detection (using wrist landmark)
+        const wrist = landmarks[0];
+        if (wrist) {
+          const currentTime = Date.now();
+          const handX = wrist.x;
+          
+          // Add current position to history
+          handPositionHistoryRef.current.push({ x: handX, timestamp: currentTime });
+          
+          // Keep only last 15 frames (about 0.5 seconds at 30fps)
+          if (handPositionHistoryRef.current.length > 15) {
+            handPositionHistoryRef.current.shift();
+          }
+          
+          // Detect swipe if we have enough history
+          if (handPositionHistoryRef.current.length >= 10) {
+            const firstPos = handPositionHistoryRef.current[0];
+            const lastPos = handPositionHistoryRef.current[handPositionHistoryRef.current.length - 1];
+            const deltaX = lastPos.x - firstPos.x;
+            const deltaTime = lastPos.timestamp - firstPos.timestamp;
+            
+            // Swipe detection threshold (movement > 0.15 across screen in < 600ms)
+            if (Math.abs(deltaX) > 0.15 && deltaTime < 600) {
+              const now = Date.now();
+              // Cooldown to prevent double triggering
+              if (now - lastGestureTimeRef.current > 1000) {
+                if (deltaX > 0) {
+                  // Swipe right - Next song
+                  if (!isPlaying) togglePlay();
+                  nextSong();
+                  speak('Playing next song');
+                  addCommand('gesture', 'Swipe Right → Next Song');
+                  toast({
+                    title: "👋 Swipe Right",
+                    description: "Next Song ⏭️",
+                    duration: 2000,
+                  });
+                  setLastInputType('gesture');
+                  lastGestureTimeRef.current = now;
+                  handPositionHistoryRef.current = [];
+                } else {
+                  // Swipe left - Previous song
+                  if (!isPlaying) togglePlay();
+                  previousSong();
+                  speak('Playing previous song');
+                  addCommand('gesture', 'Swipe Left → Previous Song');
+                  toast({
+                    title: "👋 Swipe Left",
+                    description: "Previous Song ⏮️",
+                    duration: 2000,
+                  });
+                  setLastInputType('gesture');
+                  lastGestureTimeRef.current = now;
+                  handPositionHistoryRef.current = [];
+                }
+              }
+            }
+          }
+        }
 
         // Thumb-index volume control
         const thumbTip = landmarks[4];
@@ -232,41 +292,17 @@ export const GestureControl: React.FC = () => {
         
       case 'Thumb_Down':
         // Dynamic Play/Pause Toggle
-        if (isPlayingMusic) {
-          togglePlay();
+        togglePlay();
+        if (isPlaying) {
           speak('Music paused');
           actionMessage = '⏸️ Music Paused';
-          setIsPlayingMusic(false);
         } else {
-          togglePlay();
           speak('Playing music');
           actionMessage = '▶️ Music Playing';
-          setIsPlayingMusic(true);
         }
         actionTaken = true;
         break;
       
-      case 'Pointing_Up':
-        // Next Song (index finger pointing up - swipe motion interpreted as next)
-        if (!isPlaying) {
-          togglePlay();
-        }
-        nextSong();
-        speak('Playing next song');
-        actionMessage = 'Next Song ⏭️';
-        actionTaken = true;
-        break;
-      
-      case 'Pointing_Down':
-        // Previous Song (index finger pointing down - interpreted as previous)
-        if (!isPlaying) {
-          togglePlay();
-        }
-        previousSong();
-        speak('Playing previous song');
-        actionMessage = 'Previous Song ⏮️';
-        actionTaken = true;
-        break;
         
       case 'Open_Palm':
         // Return to Dashboard
@@ -292,19 +328,19 @@ export const GestureControl: React.FC = () => {
         actionTaken = true;
         break;
         
-      case 'Pointing_Right':
+      case 'Pointing_Up':
         // Open Navigation Panel
         setCurrentPanel('navigation');
         speak('Opening navigation panel');
-        actionMessage = 'Opening Navigation 👉';
+        actionMessage = 'Opening Navigation ☝️';
         actionTaken = true;
         break;
         
-      case 'Pointing_Left':
+      case 'Pointing_Down':
         // Open Climate Control
         setCurrentPanel('climate');
         speak('Opening climate control');
-        actionMessage = 'Climate Control 👈';
+        actionMessage = 'Climate Control 👇';
         actionTaken = true;
         break;
         
@@ -373,8 +409,8 @@ export const GestureControl: React.FC = () => {
       <div className="absolute bottom-4 left-4 right-4 z-10 glass px-4 py-3 rounded-xl">
         <div className="text-xs text-muted-foreground text-center space-y-1">
           <p className="font-semibold">Gesture Commands:</p>
-          <p>👍 Music | 👎 Play/Pause | ☝️ Next Song | 👇 Previous Song</p>
-          <p>👉 Navigation | 👈 Climate | ✋ Dashboard | 🤙 Contacts | ✊ Vehicle</p>
+          <p>👍 Music | 👎 Play/Pause | 👉 Swipe Right: Next | 👈 Swipe Left: Previous</p>
+          <p>☝️ Navigation | 👇 Climate | ✋ Dashboard | 🤙 Contacts | ✊ Vehicle</p>
           <p>🤏 Pinch (Thumb-Index): Volume Control | ✌️ Hold 0.5s: Activate Mic</p>
         </div>
       </div>
