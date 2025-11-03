@@ -10,12 +10,15 @@ import { VoiceRecognitionOverlay } from './VoiceRecognitionOverlay';
 export const VoiceControl: React.FC = () => {
   const { 
     voiceEnabled, 
+    setVoiceEnabled,
     addCommand, 
     setCurrentPanel, 
     speak, 
     voiceOverlayActive, 
     setVoiceOverlayActive,
-    setLastInputType 
+    setLastInputType,
+    isDarkMode,
+    toggleDarkMode
   } = useInfotainment();
   const { nextSong, previousSong, togglePlay, setVolume, isPlaying, volume } = useMusicPlayer();
   const { navigateTo, destinations } = useNavigation();
@@ -137,13 +140,47 @@ export const VoiceControl: React.FC = () => {
     
     console.log('🎤 Processing command:', command, '| Confidence:', confidence.toFixed(2));
 
+    // Turn off mic
+    if (command.includes('turn off mic') || command.includes('disable mic') || command.includes('stop listening')) {
+      setVoiceEnabled(false);
+      speak('Voice recognition disabled');
+      commandRecognized = true;
+      closeOverlay();
+    }
+    // Yes/No confirmation responses
+    else if (command.includes('yes') && suggestions.length > 0) {
+      processVoiceCommand(suggestions[0], 1.0);
+      setSuggestions([]);
+      commandRecognized = true;
+    } else if (command.includes('no') && suggestions.length > 0) {
+      setSuggestions([]);
+      setRecognizedText('');
+      speak('Please try again');
+      commandRecognized = true;
+    }
     // Help command - List all commands (slower rate)
-    if (command.includes('list all commands') || command.includes('what can i say') || command.includes('help')) {
-      const commandList = `Music commands: play music, pause music, next song, previous song, increase volume, decrease volume. Navigation commands: navigate to home, work, fuel station, coffee shop, restaurant, hospital, shopping mall, or gym. Phone commands: show contacts, call contact name, answer call, reject call. Climate commands: turn on AC, turn off AC, set fan speed to 1 through 5, set temperature. System commands: go to dashboard, vehicle info, list all commands.`;
+    else if (command.includes('list all commands') || command.includes('what can i say') || command.includes('help')) {
+      const commandList = `Music commands: play music, pause music, next song, previous song, increase volume, decrease volume. Navigation commands: navigate to home, work, fuel station, coffee shop, restaurant, hospital, shopping mall, or gym. Phone commands: show contacts, call contact name, answer call, reject call. Climate commands: turn on AC, turn off AC, set fan speed to 1 through 5, set temperature. System commands: go to dashboard, vehicle info, list all commands, turn off mic.`;
       
       speak(commandList, 0.8); // Slower speech rate
       commandRecognized = true;
       closeOverlay();
+    }
+    // Light mode toggle
+    else if (command.includes('turn on light mode') || command.includes('enable light mode') || command.includes('light mode')) {
+      if (isDarkMode) {
+        toggleDarkMode();
+        speak('Light mode activated');
+        commandRecognized = true;
+        closeOverlay();
+      }
+    } else if (command.includes('turn on dark mode') || command.includes('enable dark mode') || command.includes('dark mode')) {
+      if (!isDarkMode) {
+        toggleDarkMode();
+        speak('Dark mode activated');
+        commandRecognized = true;
+        closeOverlay();
+      }
     }
     // Music Panel
     else if (command.includes('open music') || command.includes('go to music') || command.includes('music panel')) {
@@ -171,15 +208,18 @@ export const VoiceControl: React.FC = () => {
       commandRecognized = true;
       closeOverlay();
     }
-    // Music navigation
+    // Music navigation - Next Song (always resumes if paused)
     else if (
       command.includes('next song') || 
       command.includes('play next') || 
       command.includes('skip') ||
       command.includes('next track')
     ) {
+      if (!isPlaying) {
+        togglePlay(); // Resume playback if paused
+      }
       nextSong();
-      speak('Playing next song');
+      speak('Playing next track');
       commandRecognized = true;
       closeOverlay();
     } else if (
@@ -388,8 +428,12 @@ export const VoiceControl: React.FC = () => {
     }
   };
 
-  const handleSuggestionSelect = (suggestion: string) => {
-    // User can confirm or try again
+  const handleSuggestionSelect = (response: string) => {
+    if (response === 'yes' && suggestions.length > 0) {
+      // Extract the actual command from the suggestion
+      const command = suggestions[0].replace(/"/g, '').toLowerCase().trim();
+      processVoiceCommand(command, 1.0);
+    }
     setSuggestions([]);
     setRecognizedText('');
   };

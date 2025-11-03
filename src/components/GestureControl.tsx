@@ -6,7 +6,7 @@ import { GestureRecognizer, FilesetResolver, DrawingUtils } from '@mediapipe/tas
 import { toast } from '@/hooks/use-toast';
 
 export const GestureControl: React.FC = () => {
-  const { gestureEnabled, addCommand, setCurrentPanel, speak, setLastInputType } = useInfotainment();
+  const { gestureEnabled, addCommand, setCurrentPanel, speak, setLastInputType, voiceEnabled, setVoiceEnabled, setVoiceOverlayActive } = useInfotainment();
   const { nextSong, previousSong, togglePlay, setVolume, isPlaying, volume } = useMusicPlayer();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -18,6 +18,7 @@ export const GestureControl: React.FC = () => {
   const gestureConfirmationRef = useRef<{ gesture: string; count: number }>({ gesture: '', count: 0 });
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
   const [volumeControlActive, setVolumeControlActive] = useState(false);
+  const micActivationGestureRef = useRef<{ detected: boolean; startTime: number }>({ detected: false, startTime: 0 });
 
   useEffect(() => {
     if (gestureEnabled) {
@@ -117,8 +118,10 @@ export const GestureControl: React.FC = () => {
           const normalizedDistance = Math.max(minDistance, Math.min(maxDistance, distance));
           const volumeLevel = Math.round(((normalizedDistance - minDistance) / (maxDistance - minDistance)) * 100);
 
-          // Update volume smoothly
-          if (Math.abs(distance - 50) < 150) { // Active zone
+          // Check if fingers are in pinching position for volume control
+          const isPinchingGesture = distance < 150; // Only activate when fingers are relatively close
+          
+          if (isPinchingGesture) {
             setVolumeControlActive(true);
             setVolume(volumeLevel);
             
@@ -139,14 +142,49 @@ export const GestureControl: React.FC = () => {
       }
     }
 
+    // Process other gestures only when volume control is not active
     if (results.gestures && results.gestures.length > 0 && !volumeControlActive) {
-      processDetectedGesture(results.gestures[0][0].categoryName);
+      const detectedGesture = results.gestures[0][0].categoryName;
+      
+      // Check for mic activation gesture (Thumb_Up + Index_Up = crossed fingers approximation)
+      // MediaPipe doesn't have "crossed fingers" so we'll use a combination or alternative
+      if (detectedGesture === 'Victory') {
+        handleMicActivationGesture();
+      } else {
+        processDetectedGesture(detectedGesture);
+      }
     }
 
     requestAnimationFrame(detectGestures);
   };
 
+  const handleMicActivationGesture = () => {
+    const now = Date.now();
+    
+    if (!micActivationGestureRef.current.detected) {
+      // Start tracking the gesture
+      micActivationGestureRef.current = { detected: true, startTime: now };
+    } else if (now - micActivationGestureRef.current.startTime >= 500) {
+      // Gesture held for 0.5 seconds, activate mic
+      if (!voiceEnabled) {
+        setVoiceEnabled(true);
+        setVoiceOverlayActive(true);
+        speak('Voice recognition activated');
+        addCommand('gesture', 'Mic Activation (Victory gesture held)');
+        toast({
+          title: "🎤 Mic Activated",
+          description: "Voice recognition enabled",
+          duration: 2000,
+        });
+      }
+      // Reset after activation
+      micActivationGestureRef.current = { detected: false, startTime: 0 };
+    }
+  };
+
   const processDetectedGesture = (gesture: string) => {
+    // Reset mic activation gesture if different gesture detected
+    micActivationGestureRef.current = { detected: false, startTime: 0 };
     // Filter out "None" gestures
     if (gesture === 'None' || !gesture) {
       gestureConfirmationRef.current = { gesture: '', count: 0 };
@@ -208,27 +246,25 @@ export const GestureControl: React.FC = () => {
         actionTaken = true;
         break;
       
-      case 'Pointing_Right':
-        // Next Song (backhand index pointing right)
+      case 'Pointing_Up':
+        // Next Song (index finger pointing up - swipe motion interpreted as next)
+        if (!isPlaying) {
+          togglePlay();
+        }
         nextSong();
         speak('Playing next song');
-        actionMessage = 'Next Song';
+        actionMessage = 'Next Song ⏭️';
         actionTaken = true;
         break;
       
-      case 'Pointing_Left':
-        // Previous Song (backhand index pointing left)
+      case 'Pointing_Down':
+        // Previous Song (index finger pointing down - interpreted as previous)
+        if (!isPlaying) {
+          togglePlay();
+        }
         previousSong();
         speak('Playing previous song');
-        actionMessage = 'Previous Song';
-        actionTaken = true;
-        break;
-        
-      case 'Victory':
-        // Open Navigation Panel
-        setCurrentPanel('navigation');
-        speak('Opening navigation panel');
-        actionMessage = 'Opening Navigation';
+        actionMessage = 'Previous Song ⏮️';
         actionTaken = true;
         break;
         
@@ -236,31 +272,39 @@ export const GestureControl: React.FC = () => {
         // Return to Dashboard
         setCurrentPanel('dashboard');
         speak('Returning to dashboard');
-        actionMessage = 'Back to Dashboard';
+        actionMessage = 'Back to Dashboard ✋';
         actionTaken = true;
         break;
         
       case 'ILoveYou':
-        // Open Contacts/Phone Panel
+        // Open Contacts/Phone Panel (🤙 shaka/call me gesture)
         setCurrentPanel('phone');
         speak('Opening contacts');
-        actionMessage = 'Opening Contacts';
-        actionTaken = true;
-        break;
-        
-      case 'Pointing_Up':
-        // Open Climate Control
-        setCurrentPanel('climate');
-        speak('Opening climate control');
-        actionMessage = 'Climate Control';
+        actionMessage = 'Opening Contacts 🤙';
         actionTaken = true;
         break;
         
       case 'Closed_Fist':
-        // Open Vehicle Info (fist gesture 👊)
+        // Open Vehicle Info (fist gesture ✊)
         setCurrentPanel('vehicle');
         speak('Opening vehicle information');
-        actionMessage = 'Vehicle Info';
+        actionMessage = 'Vehicle Info ✊';
+        actionTaken = true;
+        break;
+        
+      case 'Pointing_Right':
+        // Open Navigation Panel
+        setCurrentPanel('navigation');
+        speak('Opening navigation panel');
+        actionMessage = 'Opening Navigation 👉';
+        actionTaken = true;
+        break;
+        
+      case 'Pointing_Left':
+        // Open Climate Control
+        setCurrentPanel('climate');
+        speak('Opening climate control');
+        actionMessage = 'Climate Control 👈';
         actionTaken = true;
         break;
         
@@ -329,9 +373,9 @@ export const GestureControl: React.FC = () => {
       <div className="absolute bottom-4 left-4 right-4 z-10 glass px-4 py-3 rounded-xl">
         <div className="text-xs text-muted-foreground text-center space-y-1">
           <p className="font-semibold">Gesture Commands:</p>
-          <p>👍 Music | 👎 Play/Pause Toggle | 👉 Next | 👈 Previous</p>
-          <p>✌️ Navigation | ✋ Dashboard | 🤟 Contacts | ☝️ Climate | 👊 Vehicle</p>
-          <p>👌 Thumb-Index Distance: Volume Control</p>
+          <p>👍 Music | 👎 Play/Pause | ☝️ Next Song | 👇 Previous Song</p>
+          <p>👉 Navigation | 👈 Climate | ✋ Dashboard | 🤙 Contacts | ✊ Vehicle</p>
+          <p>🤏 Pinch (Thumb-Index): Volume Control | ✌️ Hold 0.5s: Activate Mic</p>
         </div>
       </div>
       

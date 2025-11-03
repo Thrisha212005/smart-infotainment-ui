@@ -36,6 +36,11 @@ export const InfotainmentProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const [voiceOverlayActive, setVoiceOverlayActive] = useState(false);
   const [lastInputType, setLastInputType] = useState<'voice' | 'gesture' | null>(null);
 
+  // Initialize dark mode on mount
+  useEffect(() => {
+    document.documentElement.classList.add('dark');
+  }, []);
+
   const addCommand = useCallback((type: 'voice' | 'gesture', command: string) => {
     const newCommand: Command = {
       id: Date.now().toString(),
@@ -61,6 +66,15 @@ export const InfotainmentProvider: React.FC<{ children: React.ReactNode }> = ({ 
       speak('Welcome to your Smart Infotainment System');
     }
   }, []);
+
+  useEffect(() => {
+    // Apply theme to document
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
 
   const toggleDarkMode = () => {
     setIsDarkMode(prev => !prev);

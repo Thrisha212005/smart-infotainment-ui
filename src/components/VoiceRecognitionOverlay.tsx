@@ -79,18 +79,25 @@ export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = (
           {showSuggestions && suggestions.length > 0 && (
             <div className="w-full glass rounded-2xl p-6 space-y-4 animate-fade-in">
               <p className="text-center text-muted-foreground">Did you mean:</p>
-              <div className="space-y-2">
-                {suggestions.map((suggestion, index) => (
-                  <Button
-                    key={index}
-                    variant="outline"
-                    className="w-full justify-start text-left h-auto py-3"
-                    onClick={() => onSelectSuggestion?.(suggestion)}
-                  >
-                    {suggestion}
-                  </Button>
-                ))}
+              <div className="flex gap-4 justify-center">
+                <Button
+                  variant="default"
+                  size="lg"
+                  onClick={() => onSelectSuggestion?.('yes')}
+                >
+                  Yes
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => onSelectSuggestion?.('no')}
+                >
+                  No
+                </Button>
               </div>
+              <p className="text-center text-sm text-muted-foreground italic">
+                {suggestions[0]}
+              </p>
             </div>
           )}
 

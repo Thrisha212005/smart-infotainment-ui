@@ -14,6 +14,7 @@ import { ControlBar } from '@/components/ControlBar';
 import { CommandLog } from '@/components/CommandLog';
 import { GestureControl } from '@/components/GestureControl';
 import { VoiceControl } from '@/components/VoiceControl';
+import { InputIndicator } from '@/components/InputIndicator';
 
 const InfotainmentContent: React.FC = () => {
   const { currentPanel } = useInfotainment();
@@ -57,6 +58,7 @@ const InfotainmentContent: React.FC = () => {
   return (
     <div className="min-h-screen bg-background p-6">
       <VoiceControl />
+      <InputIndicator />
       
       {/* Header */}
       <div className="max-w-[1600px] mx-auto mb-6">
