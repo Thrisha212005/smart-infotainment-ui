@@ -38,9 +38,10 @@ export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = (
           variant="ghost"
           size="icon"
           onClick={onClose}
-          className="absolute top-4 right-4"
+          className="absolute top-4 right-4 hover:bg-destructive/20"
+          title="Turn off microphone"
         >
-          <X className="w-6 h-6" />
+          <X className="w-6 h-6 text-destructive" />
         </Button>
 
         <div className="flex flex-col items-center gap-8 max-w-2xl w-full">
@@ -69,11 +70,13 @@ export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = (
           </div>
 
           {/* Real-time Voice-to-Text Display */}
-          {recognizedText && (
-            <div className="w-full glass rounded-2xl p-6 animate-fade-in">
+          <div className="w-full glass rounded-2xl p-6 min-h-[80px] flex items-center justify-center animate-fade-in">
+            {recognizedText ? (
               <p className="text-lg text-center font-medium">{recognizedText}</p>
-            </div>
-          )}
+            ) : (
+              <p className="text-muted-foreground text-center italic">Speak now...</p>
+            )}
+          </div>
 
           {/* Command Suggestions */}
           {showSuggestions && suggestions.length > 0 && (
