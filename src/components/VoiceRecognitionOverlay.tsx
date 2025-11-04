@@ -32,7 +32,7 @@ export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = (
   if (!isActive) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm transition-opacity duration-500 ease-in-out animate-fade-in">
       <div className="flex flex-col items-center justify-center h-full p-8">
         <Button
           variant="ghost"

@@ -16,9 +16,9 @@ export const GestureControl: React.FC = () => {
   const lastGestureRef = useRef<string>('');
   const lastGestureTimeRef = useRef<number>(0);
   const gestureConfirmationRef = useRef<{ gesture: string; count: number }>({ gesture: '', count: 0 });
-  const [isPlayingMusic, setIsPlayingMusic] = useState(false);
   const [volumeControlActive, setVolumeControlActive] = useState(false);
   const micActivationGestureRef = useRef<{ detected: boolean; startTime: number }>({ detected: false, startTime: 0 });
+  const handPositionRef = useRef<{ x: number; timestamp: number } | null>(null);
 
   useEffect(() => {
     if (gestureEnabled) {
@@ -94,6 +94,34 @@ export const GestureControl: React.FC = () => {
           radius: 3
         });
 
+        // Track hand position for swipe detection
+        const wrist = landmarks[0];
+        if (wrist) {
+          const currentX = wrist.x * canvas.width;
+          
+          if (handPositionRef.current) {
+            const deltaX = currentX - handPositionRef.current.x;
+            const deltaTime = nowInMs - handPositionRef.current.timestamp;
+            
+            // Detect significant horizontal movement (swipe)
+            if (Math.abs(deltaX) > 100 && deltaTime < 500) {
+              if (deltaX > 0) {
+                // Swipe right - Next song
+                handleSwipeGesture('next');
+              } else {
+                // Swipe left - Previous song
+                handleSwipeGesture('previous');
+              }
+              handPositionRef.current = null; // Reset after swipe
+            } else if (deltaTime > 500) {
+              // Update position if too much time has passed
+              handPositionRef.current = { x: currentX, timestamp: nowInMs };
+            }
+          } else {
+            handPositionRef.current = { x: currentX, timestamp: nowInMs };
+          }
+        }
+
         // Thumb-index volume control
         const thumbTip = landmarks[4];
         const indexTip = landmarks[8];
@@ -156,6 +184,44 @@ export const GestureControl: React.FC = () => {
     }
 
     requestAnimationFrame(detectGestures);
+  };
+
+  const handleSwipeGesture = (direction: 'next' | 'previous') => {
+    const now = Date.now();
+    
+    // Cooldown to prevent double triggering
+    if (now - lastGestureTimeRef.current < 800) {
+      return;
+    }
+    
+    lastGestureTimeRef.current = now;
+    setLastInputType('gesture');
+    
+    if (direction === 'next') {
+      if (!isPlaying) {
+        togglePlay();
+      }
+      nextSong();
+      speak('Playing next song');
+      addCommand('gesture', 'Swipe Right - Next Song');
+      toast({
+        title: "👋 Swipe Right",
+        description: "Next Song ⏭️",
+        duration: 2000,
+      });
+    } else {
+      if (!isPlaying) {
+        togglePlay();
+      }
+      previousSong();
+      speak('Playing previous song');
+      addCommand('gesture', 'Swipe Left - Previous Song');
+      toast({
+        title: "👋 Swipe Left",
+        description: "Previous Song ⏮️",
+        duration: 2000,
+      });
+    }
   };
 
   const handleMicActivationGesture = () => {
@@ -232,41 +298,17 @@ export const GestureControl: React.FC = () => {
         
       case 'Thumb_Down':
         // Dynamic Play/Pause Toggle
-        if (isPlayingMusic) {
-          togglePlay();
-          speak('Music paused');
+        togglePlay();
+        if (isPlaying) {
+          speak('Pausing music');
           actionMessage = '⏸️ Music Paused';
-          setIsPlayingMusic(false);
         } else {
-          togglePlay();
           speak('Playing music');
           actionMessage = '▶️ Music Playing';
-          setIsPlayingMusic(true);
         }
         actionTaken = true;
         break;
       
-      case 'Pointing_Up':
-        // Next Song (index finger pointing up - swipe motion interpreted as next)
-        if (!isPlaying) {
-          togglePlay();
-        }
-        nextSong();
-        speak('Playing next song');
-        actionMessage = 'Next Song ⏭️';
-        actionTaken = true;
-        break;
-      
-      case 'Pointing_Down':
-        // Previous Song (index finger pointing down - interpreted as previous)
-        if (!isPlaying) {
-          togglePlay();
-        }
-        previousSong();
-        speak('Playing previous song');
-        actionMessage = 'Previous Song ⏮️';
-        actionTaken = true;
-        break;
         
       case 'Open_Palm':
         // Return to Dashboard
@@ -373,7 +415,7 @@ export const GestureControl: React.FC = () => {
       <div className="absolute bottom-4 left-4 right-4 z-10 glass px-4 py-3 rounded-xl">
         <div className="text-xs text-muted-foreground text-center space-y-1">
           <p className="font-semibold">Gesture Commands:</p>
-          <p>👍 Music | 👎 Play/Pause | ☝️ Next Song | 👇 Previous Song</p>
+          <p>👍 Music | 👎 Play/Pause | 👉➡️ Swipe Right: Next | 👈⬅️ Swipe Left: Previous</p>
           <p>👉 Navigation | 👈 Climate | ✋ Dashboard | 🤙 Contacts | ✊ Vehicle</p>
           <p>🤏 Pinch (Thumb-Index): Volume Control | ✌️ Hold 0.5s: Activate Mic</p>
         </div>

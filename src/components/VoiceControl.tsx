@@ -129,9 +129,20 @@ export const VoiceControl: React.FC = () => {
   }, [voiceEnabled, voiceOverlayActive]);
 
   const closeOverlay = () => {
-    setVoiceOverlayActive(false);
-    setRecognizedText('');
-    setSuggestions([]);
+    // Add fade-out animation before closing
+    const overlay = document.querySelector('.fixed.inset-0.z-50');
+    if (overlay) {
+      overlay.classList.add('opacity-0');
+      setTimeout(() => {
+        setVoiceOverlayActive(false);
+        setRecognizedText('');
+        setSuggestions([]);
+      }, 400);
+    } else {
+      setVoiceOverlayActive(false);
+      setRecognizedText('');
+      setSuggestions([]);
+    }
   };
 
   const processVoiceCommand = (command: string, confidence: number = 1.0) => {
