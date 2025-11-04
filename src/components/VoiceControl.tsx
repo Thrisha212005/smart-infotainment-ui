@@ -149,20 +149,8 @@ export const VoiceControl: React.FC = () => {
     }
   };
 
-  const reopenListeningTab = () => {
-    // Only reopen if mic is not manually disabled
-    if (!manualMicOff && voiceEnabled) {
-      setTimeout(() => {
-        setRecognizedText('');
-        setSuggestions([]);
-        setIsConfirming(false);
-        setVoiceOverlayActive(true);
-      }, 600);
-    }
-  };
-
   const toggleMicManually = () => {
-    if (voiceEnabled) {
+    if (voiceOverlayActive) {
       // Turn off mic manually
       setVoiceEnabled(false);
       setManualMicOff(true);
@@ -175,6 +163,17 @@ export const VoiceControl: React.FC = () => {
       setVoiceOverlayActive(true);
       speak('Voice recognition activated');
     }
+  };
+
+  const validateCommand = (command: string): boolean => {
+    const validCommands = [
+      'play music', 'pause', 'next song', 'previous song', 'increase volume', 'decrease volume',
+      'navigate', 'show contacts', 'call', 'answer', 'reject',
+      'turn on ac', 'turn off ac', 'set fan speed', 'set temperature',
+      'dashboard', 'vehicle info', 'open music', 'open navigation', 'climate control',
+      'light mode', 'dark mode', 'turn off mic'
+    ];
+    return validCommands.some(valid => command.includes(valid));
   };
 
   const processVoiceCommand = (command: string, confidence: number = 1.0) => {
@@ -195,16 +194,28 @@ export const VoiceControl: React.FC = () => {
     else if (command.includes('yes') && suggestions.length > 0 && !isConfirming) {
       setIsConfirming(true);
       const confirmedCommand = suggestions[0].replace(/"/g, '').toLowerCase().trim();
-      setSuggestions([]);
-      setRecognizedText('');
-      processVoiceCommand(confirmedCommand, 1.0);
-      commandRecognized = true;
+      
+      // Validate if the confirmed command actually exists
+      if (!validateCommand(confirmedCommand)) {
+        speak('No such command exists. Please try again.');
+        setSuggestions([]);
+        setRecognizedText('');
+        setIsConfirming(false);
+        commandRecognized = true;
+      } else {
+        // Execute the confirmed command
+        setSuggestions([]);
+        setRecognizedText('');
+        processVoiceCommand(confirmedCommand, 1.0);
+        commandRecognized = true;
+      }
     } else if (command.includes('no') && suggestions.length > 0) {
       setSuggestions([]);
       setRecognizedText('');
       setIsConfirming(false);
-      speak('Please try again');
+      speak('Okay, please say the command again');
       commandRecognized = true;
+      // Stay on same tab - don't close
     }
     // Help command - List all commands (slower rate)
     else if (command.includes('list all commands') || command.includes('what can i say') || command.includes('help')) {
@@ -212,10 +223,7 @@ export const VoiceControl: React.FC = () => {
       
       speak(commandList, 0.8); // Slower speech rate
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 1000);
+      setTimeout(() => closeOverlay(), 1000);
     }
     // Light mode toggle
     else if (command.includes('turn on light mode') || command.includes('enable light mode') || command.includes('light mode')) {
@@ -223,20 +231,14 @@ export const VoiceControl: React.FC = () => {
         toggleDarkMode();
         speak('Light mode activated');
         commandRecognized = true;
-        setTimeout(() => {
-          closeOverlay();
-          reopenListeningTab();
-        }, 800);
+        setTimeout(() => closeOverlay(), 800);
       }
     } else if (command.includes('turn on dark mode') || command.includes('enable dark mode') || command.includes('dark mode')) {
       if (!isDarkMode) {
         toggleDarkMode();
         speak('Dark mode activated');
         commandRecognized = true;
-        setTimeout(() => {
-          closeOverlay();
-          reopenListeningTab();
-        }, 800);
+        setTimeout(() => closeOverlay(), 800);
       }
     }
     // Music Panel
@@ -244,10 +246,7 @@ export const VoiceControl: React.FC = () => {
       setCurrentPanel('music');
       speak('Opening music panel');
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Play Music
     else if (command.includes('play music') || command.includes('start music')) {
@@ -255,10 +254,7 @@ export const VoiceControl: React.FC = () => {
       if (!isPlaying) togglePlay();
       speak('Playing music');
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Pause Music
     else if (command.includes('pause') || command.includes('stop music') || command.includes('halt music')) {
@@ -269,10 +265,7 @@ export const VoiceControl: React.FC = () => {
         speak('Music is already paused');
       }
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Music navigation - Next Song (always resumes if paused)
     else if (
@@ -287,10 +280,7 @@ export const VoiceControl: React.FC = () => {
       nextSong();
       speak('Playing next track');
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     } else if (
       command.includes('previous song') || 
       command.includes('play previous') ||
@@ -300,10 +290,7 @@ export const VoiceControl: React.FC = () => {
       previousSong();
       speak('Playing previous song');
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Volume control - smooth adjustments
     else if (command.includes('increase volume') || command.includes('volume up') || command.includes('louder')) {
@@ -311,29 +298,20 @@ export const VoiceControl: React.FC = () => {
       setVolume(newVolume);
       speak(`Volume set to ${newVolume} percent`);
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     } else if (command.includes('decrease volume') || command.includes('volume down') || command.includes('quieter')) {
       const newVolume = Math.max(0, volume - 10);
       setVolume(newVolume);
       speak(`Volume set to ${newVolume} percent`);
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Navigation Panel
     else if (command.includes('open navigation') || command.includes('show navigation') || command.includes('navigation panel')) {
       setCurrentPanel('navigation');
       speak('Opening navigation panel');
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Navigation destinations with fuzzy matching
     else if (
@@ -372,10 +350,7 @@ export const VoiceControl: React.FC = () => {
         navigateTo(foundDestination);
         speak(`Navigating to ${foundDestination}`);
         commandRecognized = true;
-        setTimeout(() => {
-          closeOverlay();
-          reopenListeningTab();
-        }, 800);
+        setTimeout(() => closeOverlay(), 800);
       }
     }
     // Phone/Contacts Panel
@@ -383,10 +358,7 @@ export const VoiceControl: React.FC = () => {
       setCurrentPanel('phone');
       speak('Opening contacts panel');
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Call commands
     else if (command.includes('call')) {
@@ -398,37 +370,25 @@ export const VoiceControl: React.FC = () => {
         callContact(properName);
         speak(`Calling ${properName}`);
         commandRecognized = true;
-        setTimeout(() => {
-          closeOverlay();
-          reopenListeningTab();
-        }, 800);
+        setTimeout(() => closeOverlay(), 800);
       }
     } else if (command.includes('answer') || command.includes('pick up') || command.includes('take call')) {
       answerCall();
       speak('Call answered');
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     } else if (command.includes('reject') || command.includes('decline') || command.includes('hang up')) {
       rejectCall();
       speak('Call rejected');
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Climate Control Panel
     else if (command.includes('climate control') || command.includes('open climate') || command.includes('adjust climate')) {
       setCurrentPanel('climate');
       speak('Opening climate control panel');
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // AC commands - fixed logic
     else if (command.includes('turn on ac') || command.includes('air conditioning on') || command.includes('ac on')) {
@@ -440,10 +400,7 @@ export const VoiceControl: React.FC = () => {
         speak('Air conditioning is already on');
       }
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     } else if (command.includes('turn off ac') || command.includes('air conditioning off') || command.includes('ac off')) {
       setCurrentPanel('climate');
       if (isACOn) {
@@ -453,10 +410,7 @@ export const VoiceControl: React.FC = () => {
         speak('Air conditioning is already off');
       }
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Fan speed control
     else if (command.includes('set fan speed') || command.includes('fan speed')) {
@@ -468,10 +422,7 @@ export const VoiceControl: React.FC = () => {
           setFanSpeed(speed);
           speak(`Fan speed set to level ${speed}`);
           commandRecognized = true;
-          setTimeout(() => {
-            closeOverlay();
-            reopenListeningTab();
-          }, 800);
+          setTimeout(() => closeOverlay(), 800);
         }
       }
     }
@@ -484,10 +435,7 @@ export const VoiceControl: React.FC = () => {
         setTemperature(temp);
         speak(`Temperature set to ${temp} degrees`);
         commandRecognized = true;
-        setTimeout(() => {
-          closeOverlay();
-          reopenListeningTab();
-        }, 800);
+        setTimeout(() => closeOverlay(), 800);
       }
     }
     // Dashboard - enhanced matching with state awareness
@@ -502,20 +450,14 @@ export const VoiceControl: React.FC = () => {
       setCurrentPanel('dashboard');
       speak('Returning to dashboard');
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Vehicle info
     else if (command.includes('vehicle info') || command.includes('car info') || command.includes('vehicle panel')) {
       setCurrentPanel('vehicle');
       speak('Opening vehicle information');
       commandRecognized = true;
-      setTimeout(() => {
-        closeOverlay();
-        reopenListeningTab();
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     
     // If no command was recognized
