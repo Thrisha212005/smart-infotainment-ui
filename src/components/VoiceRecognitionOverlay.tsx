@@ -9,6 +9,7 @@ interface VoiceRecognitionOverlayProps {
   isListening: boolean;
   suggestions?: string[];
   onSelectSuggestion?: (suggestion: string) => void;
+  isClosing?: boolean;
 }
 
 export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = ({
@@ -18,6 +19,7 @@ export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = (
   isListening,
   suggestions = [],
   onSelectSuggestion,
+  isClosing = false,
 }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -32,7 +34,9 @@ export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = (
   if (!isActive) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm transition-opacity duration-500 ease-in-out animate-fade-in">
+    <div className={`fixed inset-0 z-50 bg-background/95 backdrop-blur-sm transition-opacity duration-500 ease-in-out ${
+      isClosing ? 'opacity-0' : 'opacity-100 animate-fade-in'
+    }`}>
       <div className="flex flex-col items-center justify-center h-full p-8">
         <Button
           variant="ghost"
