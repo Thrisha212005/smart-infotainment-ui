@@ -131,38 +131,17 @@ export const VoiceControl: React.FC = () => {
   }, [voiceEnabled, voiceOverlayActive]);
 
   const closeOverlay = () => {
-    // Add fade-out animation before closing
-    const overlay = document.querySelector('.fixed.inset-0.z-50');
-    if (overlay) {
-      overlay.classList.add('opacity-0');
-      setTimeout(() => {
-        setVoiceOverlayActive(false);
-        setRecognizedText('');
-        setSuggestions([]);
-        setIsConfirming(false);
-      }, 500);
-    } else {
-      setVoiceOverlayActive(false);
-      setRecognizedText('');
-      setSuggestions([]);
-      setIsConfirming(false);
-    }
+    setVoiceOverlayActive(false);
+    setVoiceEnabled(false);
+    setRecognizedText('');
+    setSuggestions([]);
+    setIsConfirming(false);
   };
 
   const toggleMicManually = () => {
-    if (voiceOverlayActive) {
-      // Turn off mic manually
-      setVoiceEnabled(false);
-      setManualMicOff(true);
-      closeOverlay();
-      speak('Voice recognition disabled');
-    } else {
-      // Turn on mic manually
-      setVoiceEnabled(true);
-      setManualMicOff(false);
-      setVoiceOverlayActive(true);
-      speak('Voice recognition activated');
-    }
+    setVoiceEnabled(false);
+    setManualMicOff(true);
+    closeOverlay();
   };
 
   const validateCommand = (command: string): boolean => {
@@ -185,18 +164,17 @@ export const VoiceControl: React.FC = () => {
 
     // Turn off mic
     if (command.includes('turn off mic') || command.includes('disable mic') || command.includes('stop listening')) {
-      setVoiceEnabled(false);
-      setManualMicOff(true);
       speak('Voice recognition disabled');
       commandRecognized = true;
+      addCommand('voice', command);
       setTimeout(() => closeOverlay(), 800);
     }
     // Yes/No confirmation responses
-    else if (command.includes('yes') && suggestions.length > 0 && !isConfirming) {
+    else if (command === 'yes' && suggestions.length > 0 && !isConfirming) {
       setIsConfirming(true);
       const confirmedCommand = suggestions[0].replace(/"/g, '').toLowerCase().trim();
       
-      // Clear suggestions immediately to prevent re-processing
+      // Clear suggestions and text immediately
       setSuggestions([]);
       setRecognizedText('');
       
@@ -205,18 +183,20 @@ export const VoiceControl: React.FC = () => {
         speak('No such command exists. Please try again.');
         setIsConfirming(false);
         commandRecognized = true;
+        return; // Stay in listening mode
       } else {
-        // Execute the confirmed command immediately
-        processVoiceCommand(confirmedCommand, 1.0);
+        // Execute the confirmed command - recursive call will handle the rest
         setIsConfirming(false);
-        commandRecognized = true;
+        processVoiceCommand(confirmedCommand, 1.0);
+        return; // Command execution handles closing
       }
-    } else if (command.includes('no') && suggestions.length > 0) {
+    } else if (command === 'no' && suggestions.length > 0) {
       setSuggestions([]);
       setRecognizedText('');
       setIsConfirming(false);
       speak('Okay, please say the command again');
       commandRecognized = true;
+      return; // Stay in listening mode
     }
     // Help command - List all commands (slower rate)
     else if (command.includes('list all commands') || command.includes('what can i say') || command.includes('help')) {
@@ -482,11 +462,13 @@ export const VoiceControl: React.FC = () => {
       if (confidence >= 0.5) {
         setSuggestions([`"${command}"`]);
         speak(`Did you mean ${command}?`);
+        // Stay in listening mode for yes/no response
       } else {
         speak("Sorry, I didn't catch that. Please try again.");
         setTimeout(() => {
           setRecognizedText('');
         }, 2000);
+        // Stay in listening mode
       }
     } else {
       // Command executed successfully

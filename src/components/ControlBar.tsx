@@ -17,10 +17,9 @@ export const ControlBar: React.FC = () => {
   } = useInfotainment();
 
   const handleVoiceClick = () => {
-    if (!voiceEnabled) {
-      setVoiceEnabled(true);
-    }
-    setVoiceOverlayActive(true);
+    const newState = !voiceEnabled;
+    setVoiceEnabled(newState);
+    setVoiceOverlayActive(newState);
   };
 
   return (
@@ -44,12 +43,12 @@ export const ControlBar: React.FC = () => {
           {voiceEnabled ? (
             <>
               <Mic className="w-5 h-5 mr-2" />
-              Voice
+              Voice ON
             </>
           ) : (
             <>
-              <Mic className="w-5 h-5 mr-2" />
-              Voice
+              <Mic className="w-5 h-5 mr-2 opacity-50" />
+              Voice OFF
             </>
           )}
         </Button>
