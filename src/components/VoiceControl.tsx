@@ -167,11 +167,12 @@ export const VoiceControl: React.FC = () => {
 
   const validateCommand = (command: string): boolean => {
     const validCommands = [
-      'play music', 'pause', 'next song', 'previous song', 'increase volume', 'decrease volume',
-      'navigate', 'show contacts', 'call', 'answer', 'reject',
-      'turn on ac', 'turn off ac', 'set fan speed', 'set temperature',
+      'play music', 'pause', 'stop music', 'next song', 'previous song', 'skip', 
+      'increase volume', 'decrease volume', 'volume up', 'volume down',
+      'navigate', 'go to', 'show contacts', 'call', 'answer', 'reject',
+      'turn on ac', 'turn off ac', 'ac on', 'ac off', 'set fan speed', 'set temperature',
       'dashboard', 'vehicle info', 'open music', 'open navigation', 'climate control',
-      'light mode', 'dark mode', 'turn off mic'
+      'light mode', 'dark mode', 'turn off mic', 'disable mic', 'list all commands', 'help'
     ];
     return validCommands.some(valid => command.includes(valid));
   };
@@ -195,18 +196,19 @@ export const VoiceControl: React.FC = () => {
       setIsConfirming(true);
       const confirmedCommand = suggestions[0].replace(/"/g, '').toLowerCase().trim();
       
+      // Clear suggestions immediately to prevent re-processing
+      setSuggestions([]);
+      setRecognizedText('');
+      
       // Validate if the confirmed command actually exists
       if (!validateCommand(confirmedCommand)) {
         speak('No such command exists. Please try again.');
-        setSuggestions([]);
-        setRecognizedText('');
         setIsConfirming(false);
         commandRecognized = true;
       } else {
-        // Execute the confirmed command
-        setSuggestions([]);
-        setRecognizedText('');
+        // Execute the confirmed command immediately
         processVoiceCommand(confirmedCommand, 1.0);
+        setIsConfirming(false);
         commandRecognized = true;
       }
     } else if (command.includes('no') && suggestions.length > 0) {
@@ -215,7 +217,6 @@ export const VoiceControl: React.FC = () => {
       setIsConfirming(false);
       speak('Okay, please say the command again');
       commandRecognized = true;
-      // Stay on same tab - don't close
     }
     // Help command - List all commands (slower rate)
     else if (command.includes('list all commands') || command.includes('what can i say') || command.includes('help')) {
@@ -249,21 +250,34 @@ export const VoiceControl: React.FC = () => {
       setTimeout(() => closeOverlay(), 800);
     }
     // Play Music
-    else if (command.includes('play music') || command.includes('start music')) {
+    else if (command.includes('play music') || command.includes('start music') || command.includes('resume music')) {
       setCurrentPanel('music');
-      if (!isPlaying) togglePlay();
-      speak('Playing music');
+      if (!isPlaying) {
+        togglePlay();
+        speak('Playing music');
+      } else {
+        speak('Music is already playing');
+      }
       commandRecognized = true;
       setTimeout(() => closeOverlay(), 800);
     }
     // Pause Music
-    else if (command.includes('pause') || command.includes('stop music') || command.includes('halt music')) {
+    else if (command.includes('pause music') || command.includes('stop music') || command.includes('halt music')) {
+      setCurrentPanel('music');
       if (isPlaying) {
         togglePlay();
         speak('Music paused');
       } else {
         speak('Music is already paused');
       }
+      commandRecognized = true;
+      setTimeout(() => closeOverlay(), 800);
+    }
+    // Pause/Play toggle (when just "pause" or "play" is said)
+    else if (command === 'pause' || command === 'play') {
+      setCurrentPanel('music');
+      togglePlay();
+      speak(isPlaying ? 'Music paused' : 'Playing music');
       commandRecognized = true;
       setTimeout(() => closeOverlay(), 800);
     }
