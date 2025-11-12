@@ -20,6 +20,8 @@ export const GestureControl: React.FC = () => {
   const micActivationGestureRef = useRef<{ detected: boolean; startTime: number }>({ detected: false, startTime: 0 });
   const handPositionRef = useRef<{ x: number; y: number; timestamp: number } | null>(null);
   const [movementArrow, setMovementArrow] = useState<'left' | 'right' | 'up' | 'down' | null>(null);
+  const lastPositionTriggerRef = useRef<number>(0);
+  const [handSide, setHandSide] = useState<'left' | 'right' | null>(null);
 
   useEffect(() => {
     if (gestureEnabled) {
@@ -101,6 +103,29 @@ export const GestureControl: React.FC = () => {
           const currentX = wrist.x * canvas.width;
           const currentY = wrist.y * canvas.height;
           
+          // Position-based detection: left/right side of frame
+          const centerX = canvas.width / 2;
+          const detectionThreshold = canvas.width * 0.15; // Hand must be at least 15% from center
+          
+          if (currentX < centerX - detectionThreshold) {
+            // Hand on LEFT side
+            if (nowInMs - lastPositionTriggerRef.current > 1500) {
+              setHandSide('left');
+              handlePositionGesture('left');
+              lastPositionTriggerRef.current = nowInMs;
+            }
+          } else if (currentX > centerX + detectionThreshold) {
+            // Hand on RIGHT side
+            if (nowInMs - lastPositionTriggerRef.current > 1500) {
+              setHandSide('right');
+              handlePositionGesture('right');
+              lastPositionTriggerRef.current = nowInMs;
+            }
+          } else {
+            setHandSide(null);
+          }
+          
+          // Keep swipe detection
           if (handPositionRef.current) {
             const deltaX = currentX - handPositionRef.current.x;
             const deltaY = currentY - handPositionRef.current.y;
@@ -199,6 +224,32 @@ export const GestureControl: React.FC = () => {
     }
 
     requestAnimationFrame(detectGestures);
+  };
+
+  const handlePositionGesture = (side: 'left' | 'right') => {
+    setLastInputType('gesture');
+    
+    if (side === 'left') {
+      if (!isPlaying) togglePlay();
+      previousSong();
+      speak('Playing previous song');
+      addCommand('gesture', '🤚 Left Hand Position - Previous Song');
+      toast({
+        title: "🤚 Hand on LEFT",
+        description: "⏮️ Previous Song",
+        duration: 2000,
+      });
+    } else {
+      if (!isPlaying) togglePlay();
+      nextSong();
+      speak('Playing next song');
+      addCommand('gesture', '🤚 Right Hand Position - Next Song');
+      toast({
+        title: "🤚 Hand on RIGHT",
+        description: "⏭️ Next Song",
+        duration: 2000,
+      });
+    }
   };
 
   const handleSwipeGesture = (direction: 'left' | 'right' | 'up' | 'down') => {
@@ -450,11 +501,23 @@ export const GestureControl: React.FC = () => {
       <div className="absolute bottom-4 left-4 right-4 z-10 glass px-4 py-3 rounded-xl">
         <div className="text-xs text-muted-foreground text-center space-y-1">
           <p className="font-semibold text-primary">🎯 Hand Gesture Commands</p>
+          <p><span className="font-medium">Position:</span> 🤚 Left Side: Previous | 🤚 Right Side: Next</p>
           <p><span className="font-medium">Panels:</span> 👍 Music | ✌️ Navigation | 👎 Dashboard | ✊ Contacts | ☝️ Climate | 🤟 Vehicle</p>
-          <p><span className="font-medium">Movements:</span> 👈 Left: Previous | 👉 Right: Next | 👆 Up: Play | 👇 Down: Pause</p>
+          <p><span className="font-medium">Movements:</span> 👈 Swipe Left: Previous | 👉 Swipe Right: Next | 👆 Up: Play | 👇 Down: Pause</p>
           <p><span className="font-medium">Controls:</span> 🤏 Pinch: Volume | ✋ Hold 0.5s: Mic</p>
         </div>
       </div>
+      
+      {/* Left/Right Side Detection Overlay */}
+      {handSide && (
+        <div className={`absolute top-1/2 -translate-y-1/2 z-20 pointer-events-none ${handSide === 'left' ? 'left-8' : 'right-8'}`}>
+          <div className="glass px-6 py-4 rounded-2xl border-2 border-primary animate-pulse">
+            <div className="text-4xl font-bold text-primary">
+              {handSide === 'left' ? '← PREV' : 'NEXT →'}
+            </div>
+          </div>
+        </div>
+      )}
       
       <div className="relative w-full h-full">
         <video
