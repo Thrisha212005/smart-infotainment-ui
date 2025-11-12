@@ -22,6 +22,7 @@ export const GestureControl: React.FC = () => {
   const [movementArrow, setMovementArrow] = useState<'left' | 'right' | 'up' | 'down' | null>(null);
   const lastPositionTriggerRef = useRef<number>(0);
   const [handSide, setHandSide] = useState<'left' | 'right' | null>(null);
+  const [handDetected, setHandDetected] = useState(false);
 
   useEffect(() => {
     if (gestureEnabled) {
@@ -84,6 +85,7 @@ export const GestureControl: React.FC = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     if (results.landmarks && results.landmarks.length > 0) {
+      setHandDetected(true);
       const drawingUtils = new DrawingUtils(ctx);
       
       for (const landmarks of results.landmarks) {
@@ -215,6 +217,8 @@ export const GestureControl: React.FC = () => {
           }
         }
       }
+    } else {
+      setHandDetected(false);
     }
 
     // Process other gestures only when volume control is not active
@@ -234,21 +238,11 @@ export const GestureControl: React.FC = () => {
       previousSong();
       speak('Playing previous song');
       addCommand('gesture', '🤚 Left Hand Position - Previous Song');
-      toast({
-        title: "🤚 Hand on LEFT",
-        description: "⏮️ Previous Song",
-        duration: 2000,
-      });
     } else {
       if (!isPlaying) togglePlay();
       nextSong();
       speak('Playing next song');
       addCommand('gesture', '🤚 Right Hand Position - Next Song');
-      toast({
-        title: "🤚 Hand on RIGHT",
-        description: "⏭️ Next Song",
-        duration: 2000,
-      });
     }
   };
 
@@ -263,21 +257,12 @@ export const GestureControl: React.FC = () => {
     lastGestureTimeRef.current = now;
     setLastInputType('gesture');
     
-    // Show arrow overlay
-    setMovementArrow(direction);
-    setTimeout(() => setMovementArrow(null), 1000);
-    
     switch (direction) {
       case 'right':
         if (!isPlaying) togglePlay();
         nextSong();
         speak('Playing next song');
         addCommand('gesture', '👉 Right Movement - Next Song');
-        toast({
-          title: "👉 Right Movement",
-          description: "Next Song ⏭️",
-          duration: 2000,
-        });
         break;
         
       case 'left':
@@ -285,11 +270,6 @@ export const GestureControl: React.FC = () => {
         previousSong();
         speak('Playing previous song');
         addCommand('gesture', '👈 Left Movement - Previous Song');
-        toast({
-          title: "👈 Left Movement",
-          description: "Previous Song ⏮️",
-          duration: 2000,
-        });
         break;
         
       case 'up':
@@ -297,22 +277,12 @@ export const GestureControl: React.FC = () => {
         if (!isPlaying) togglePlay();
         speak('Playing music');
         addCommand('gesture', '👆 Up Movement - Play Music');
-        toast({
-          title: "👆 Up Movement",
-          description: "▶️ Playing Music",
-          duration: 2000,
-        });
         break;
         
       case 'down':
         if (isPlaying) togglePlay();
         speak('Music paused');
         addCommand('gesture', '👇 Down Movement - Pause Music');
-        toast({
-          title: "👇 Down Movement",
-          description: "⏸️ Music Paused",
-          duration: 2000,
-        });
         break;
     }
   };
@@ -390,18 +360,17 @@ export const GestureControl: React.FC = () => {
         break;
         
       case 'Victory':
-        // ✌️ Navigation Panel
-        setCurrentPanel('navigation');
-        speak('Opening navigation');
-        actionMessage = '✌️ Navigation';
+        // ✌️ Hold for Mic Activation
+        handleMicActivationGesture();
+        actionMessage = '✌️ Mic Activation (Hold)';
         actionTaken = true;
         break;
         
       case 'Thumb_Down':
-        // 👎 Dashboard
-        setCurrentPanel('dashboard');
-        speak('Returning to dashboard');
-        actionMessage = '👎 Dashboard';
+        // 👎 Play/Pause
+        togglePlay();
+        speak(isPlaying ? 'Music paused' : 'Playing music');
+        actionMessage = `👎 ${isPlaying ? 'Paused' : 'Playing'}`;
         actionTaken = true;
         break;
         
@@ -498,23 +467,13 @@ export const GestureControl: React.FC = () => {
         </div>
       </div>
 
-      <div className="absolute bottom-4 left-4 right-4 z-10 glass px-4 py-3 rounded-xl">
-        <div className="text-xs text-muted-foreground text-center space-y-1">
-          <p className="font-semibold text-primary">🎯 Hand Gesture Commands</p>
-          <p><span className="font-medium">Position:</span> 🤚 Left Side: Previous | 🤚 Right Side: Next</p>
-          <p><span className="font-medium">Panels:</span> 👍 Music | ✌️ Navigation | 👎 Dashboard | ✊ Contacts | ☝️ Climate | 🤟 Vehicle</p>
-          <p><span className="font-medium">Movements:</span> 👈 Swipe Left: Previous | 👉 Swipe Right: Next | 👆 Up: Play | 👇 Down: Pause</p>
-          <p><span className="font-medium">Controls:</span> 🤏 Pinch: Volume | ✋ Hold 0.5s: Mic</p>
-        </div>
-      </div>
-      
-      {/* Left/Right Side Detection Overlay */}
-      {handSide && (
-        <div className={`absolute top-1/2 -translate-y-1/2 z-20 pointer-events-none ${handSide === 'left' ? 'left-8' : 'right-8'}`}>
-          <div className="glass px-6 py-4 rounded-2xl border-2 border-primary animate-pulse">
-            <div className="text-4xl font-bold text-primary">
-              {handSide === 'left' ? '← PREV' : 'NEXT →'}
-            </div>
+      {handDetected && (
+        <div className="absolute bottom-4 left-4 right-4 z-10 glass px-4 py-3 rounded-xl">
+          <div className="text-xs text-muted-foreground text-center space-y-1">
+            <p className="font-semibold text-primary">🎯 Hand Gesture Commands</p>
+            <p><span className="font-medium">Position:</span> 🤚 Left Side: Previous | 🤚 Right Side: Next</p>
+            <p><span className="font-medium">Panels:</span> 👍 Music | ✊ Contacts | ☝️ Climate | 🤟 Vehicle</p>
+            <p><span className="font-medium">Controls:</span> 👎 Play/Pause | 🤏 Pinch: Volume | ✌️ Hold 0.5s: Activate Mic</p>
           </div>
         </div>
       )}
@@ -542,17 +501,6 @@ export const GestureControl: React.FC = () => {
         </div>
       )}
       
-      {/* Large Directional Arrow Overlay */}
-      {movementArrow && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 animate-fade-in">
-          <div className="text-[240px] leading-none drop-shadow-2xl animate-scale-in">
-            {movementArrow === 'left' && '←'}
-            {movementArrow === 'right' && '→'}
-            {movementArrow === 'up' && '↑'}
-            {movementArrow === 'down' && '↓'}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
