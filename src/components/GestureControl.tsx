@@ -19,6 +19,7 @@ export const GestureControl: React.FC = () => {
   const [volumeControlActive, setVolumeControlActive] = useState(false);
   const micActivationGestureRef = useRef<{ detected: boolean; startTime: number }>({ detected: false, startTime: 0 });
   const handPositionRef = useRef<{ x: number; y: number; timestamp: number } | null>(null);
+  const [movementArrow, setMovementArrow] = useState<'left' | 'right' | 'up' | 'down' | null>(null);
 
   useEffect(() => {
     if (gestureEnabled) {
@@ -210,6 +211,10 @@ export const GestureControl: React.FC = () => {
     
     lastGestureTimeRef.current = now;
     setLastInputType('gesture');
+    
+    // Show arrow overlay
+    setMovementArrow(direction);
+    setTimeout(() => setMovementArrow(null), 1000);
     
     switch (direction) {
       case 'right':
@@ -470,6 +475,18 @@ export const GestureControl: React.FC = () => {
           <div className="text-center">
             <Camera className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
             <p className="text-sm text-muted-foreground">Initializing AI gesture recognition...</p>
+          </div>
+        </div>
+      )}
+      
+      {/* Large Directional Arrow Overlay */}
+      {movementArrow && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20 animate-fade-in">
+          <div className="text-[240px] leading-none drop-shadow-2xl animate-scale-in">
+            {movementArrow === 'left' && '←'}
+            {movementArrow === 'right' && '→'}
+            {movementArrow === 'up' && '↑'}
+            {movementArrow === 'down' && '↓'}
           </div>
         </div>
       )}
