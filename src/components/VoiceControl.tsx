@@ -29,9 +29,6 @@ export const VoiceControl: React.FC = () => {
   const [recognizedText, setRecognizedText] = useState<string>('');
   const [isListening, setIsListening] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [isConfirming, setIsConfirming] = useState(false);
-  const [manualMicOff, setManualMicOff] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
 
   useEffect(() => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
@@ -131,54 +128,10 @@ export const VoiceControl: React.FC = () => {
     }
   }, [voiceEnabled, voiceOverlayActive]);
 
-  // Close overlay temporarily (hide UI but keep voice enabled for continuous listening)
-  const closeOverlayTemporarily = () => {
-    setIsClosing(true);
-    setTimeout(() => {
-      setVoiceOverlayActive(false);
-      setRecognizedText('');
-      setSuggestions([]);
-      setIsConfirming(false);
-      setIsClosing(false);
-    }, 500);
-  };
-
-  // Close overlay completely (disable voice recognition entirely)
-  const closeOverlayCompletely = () => {
-    setIsClosing(true);
-    setTimeout(() => {
-      setVoiceOverlayActive(false);
-      setVoiceEnabled(false);
-      setRecognizedText('');
-      setSuggestions([]);
-      setIsConfirming(false);
-      setManualMicOff(true);
-      setIsClosing(false);
-    }, 500);
-  };
-
-  // Reopen overlay in listening mode
-  const reopenListening = () => {
+  const closeOverlay = () => {
+    setVoiceOverlayActive(false);
     setRecognizedText('');
     setSuggestions([]);
-    setIsConfirming(false);
-    setVoiceOverlayActive(true);
-  };
-
-  const toggleMicManually = () => {
-    closeOverlayCompletely();
-  };
-
-  const validateCommand = (command: string): boolean => {
-    const validCommands = [
-      'play music', 'pause', 'stop music', 'next song', 'previous song', 'skip', 
-      'increase volume', 'decrease volume', 'volume up', 'volume down',
-      'navigate', 'go to', 'show contacts', 'call', 'answer', 'reject',
-      'turn on ac', 'turn off ac', 'ac on', 'ac off', 'set fan speed', 'set temperature',
-      'dashboard', 'vehicle info', 'open music', 'open navigation', 'climate control',
-      'light mode', 'dark mode', 'turn off mic', 'disable mic', 'list all commands', 'help'
-    ];
-    return validCommands.some(valid => command.includes(valid));
   };
 
   const processVoiceCommand = (command: string, confidence: number = 1.0) => {
@@ -189,114 +142,23 @@ export const VoiceControl: React.FC = () => {
 
     // Turn off mic
     if (command.includes('turn off mic') || command.includes('disable mic') || command.includes('stop listening')) {
+      setVoiceEnabled(false);
       speak('Voice recognition disabled');
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => closeOverlayCompletely(), 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Yes/No confirmation responses
-    else if (command === 'yes' && suggestions.length > 0 && !isConfirming) {
-      setIsConfirming(true);
+    else if (command.includes('yes') && suggestions.length > 0) {
       const confirmedCommand = suggestions[0].replace(/"/g, '').toLowerCase().trim();
-      
-      // Clear suggestions and text immediately
       setSuggestions([]);
       setRecognizedText('');
-      
-      // Validate if the confirmed command actually exists
-      if (!validateCommand(confirmedCommand)) {
-        speak('No such command exists. Please try again.');
-        setIsConfirming(false);
-        commandRecognized = true;
-        return; // Stay in listening mode
-      }
-      
-      // Execute inline without recursion to prevent "did you mean yes" loop
-      setIsConfirming(false);
-      addCommand('voice', confirmedCommand);
-      
-      // Execute based on command type
-      if (confirmedCommand.includes('play music') || confirmedCommand.includes('start music')) {
-        setCurrentPanel('music');
-        if (!isPlaying) togglePlay();
-        speak('Playing music');
-        commandRecognized = true;
-        setTimeout(() => {
-          closeOverlayTemporarily();
-          setTimeout(() => reopenListening(), 500);
-        }, 800);
-      } else if (confirmedCommand.includes('pause') || confirmedCommand.includes('stop music')) {
-        setCurrentPanel('music');
-        if (isPlaying) togglePlay();
-        speak('Music paused');
-        commandRecognized = true;
-        setTimeout(() => {
-          closeOverlayTemporarily();
-          setTimeout(() => reopenListening(), 500);
-        }, 800);
-      } else if (confirmedCommand.includes('next song') || confirmedCommand.includes('skip')) {
-        if (!isPlaying) togglePlay();
-        nextSong();
-        speak('Playing next track');
-        commandRecognized = true;
-        setTimeout(() => {
-          closeOverlayTemporarily();
-          setTimeout(() => reopenListening(), 500);
-        }, 800);
-      } else if (confirmedCommand.includes('previous song')) {
-        previousSong();
-        speak('Playing previous song');
-        commandRecognized = true;
-        setTimeout(() => {
-          closeOverlayTemporarily();
-          setTimeout(() => reopenListening(), 500);
-        }, 800);
-      } else if (confirmedCommand.includes('navigate') || confirmedCommand.includes('go to')) {
-        // Navigation logic
-        const destinationMap: { [key: string]: string } = {
-          'home': 'Home', 'work': 'Work', 'fuel': 'Nearest Fuel Station',
-          'gas': 'Nearest Fuel Station', 'coffee': 'Nearest Coffee Shop',
-          'restaurant': 'Nearest Restaurant', 'hospital': 'Nearest Hospital',
-          'shopping': 'Nearest Shopping Mall', 'mall': 'Nearest Shopping Mall',
-          'gym': 'Gym'
-        };
-        let foundDestination = null;
-        for (const [key, dest] of Object.entries(destinationMap)) {
-          if (confirmedCommand.includes(key)) {
-            foundDestination = dest;
-            break;
-          }
-        }
-        if (foundDestination) {
-          setCurrentPanel('navigation');
-          navigateTo(foundDestination);
-          speak(`Navigating to ${foundDestination}`);
-          commandRecognized = true;
-          setTimeout(() => {
-            closeOverlayTemporarily();
-            setTimeout(() => reopenListening(), 500);
-          }, 800);
-        }
-      } else if (confirmedCommand.includes('dashboard')) {
-        setCurrentPanel('dashboard');
-        speak('Returning to dashboard');
-        commandRecognized = true;
-        setTimeout(() => {
-          closeOverlayTemporarily();
-          setTimeout(() => reopenListening(), 500);
-        }, 800);
-      } else {
-        // Fallback to recursive call for other commands
-        processVoiceCommand(confirmedCommand, 1.0);
-      }
-      return;
-    } else if (command === 'no' && suggestions.length > 0) {
-      setSuggestions([]);
-      setRecognizedText('');
-      setIsConfirming(false);
-      speak('Okay, please say the command again');
+      processVoiceCommand(confirmedCommand, 1.0);
       commandRecognized = true;
-      return; // Stay in listening mode
+    } else if (command.includes('no') && suggestions.length > 0) {
+      setSuggestions([]);
+      setRecognizedText('');
+      speak('Please try again');
+      commandRecognized = true;
     }
     // Help command - List all commands (slower rate)
     else if (command.includes('list all commands') || command.includes('what can i say') || command.includes('help')) {
@@ -304,11 +166,7 @@ export const VoiceControl: React.FC = () => {
       
       speak(commandList, 0.8); // Slower speech rate
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 1000);
+      setTimeout(() => closeOverlay(), 1000);
     }
     // Light mode toggle
     else if (command.includes('turn on light mode') || command.includes('enable light mode') || command.includes('light mode')) {
@@ -316,22 +174,14 @@ export const VoiceControl: React.FC = () => {
         toggleDarkMode();
         speak('Light mode activated');
         commandRecognized = true;
-        addCommand('voice', command);
-        setTimeout(() => {
-          closeOverlayTemporarily();
-          setTimeout(() => reopenListening(), 500);
-        }, 800);
+        setTimeout(() => closeOverlay(), 800);
       }
     } else if (command.includes('turn on dark mode') || command.includes('enable dark mode') || command.includes('dark mode')) {
       if (!isDarkMode) {
         toggleDarkMode();
         speak('Dark mode activated');
         commandRecognized = true;
-        addCommand('voice', command);
-        setTimeout(() => {
-          closeOverlayTemporarily();
-          setTimeout(() => reopenListening(), 500);
-        }, 800);
+        setTimeout(() => closeOverlay(), 800);
       }
     }
     // Music Panel
@@ -339,31 +189,18 @@ export const VoiceControl: React.FC = () => {
       setCurrentPanel('music');
       speak('Opening music panel');
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Play Music
-    else if (command.includes('play music') || command.includes('start music') || command.includes('resume music')) {
+    else if (command.includes('play music') || command.includes('start music')) {
       setCurrentPanel('music');
-      if (!isPlaying) {
-        togglePlay();
-        speak('Playing music');
-      } else {
-        speak('Music is already playing');
-      }
+      if (!isPlaying) togglePlay();
+      speak('Playing music');
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Pause Music
-    else if (command.includes('pause music') || command.includes('stop music') || command.includes('halt music')) {
-      setCurrentPanel('music');
+    else if (command.includes('pause') || command.includes('stop music') || command.includes('halt music')) {
       if (isPlaying) {
         togglePlay();
         speak('Music paused');
@@ -371,23 +208,7 @@ export const VoiceControl: React.FC = () => {
         speak('Music is already paused');
       }
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
-    }
-    // Pause/Play toggle (when just "pause" or "play" is said)
-    else if (command === 'pause' || command === 'play') {
-      setCurrentPanel('music');
-      togglePlay();
-      speak(isPlaying ? 'Music paused' : 'Playing music');
-      commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Music navigation - Next Song (always resumes if paused)
     else if (
@@ -402,11 +223,7 @@ export const VoiceControl: React.FC = () => {
       nextSong();
       speak('Playing next track');
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     } else if (
       command.includes('previous song') || 
       command.includes('play previous') ||
@@ -416,11 +233,7 @@ export const VoiceControl: React.FC = () => {
       previousSong();
       speak('Playing previous song');
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Volume control - smooth adjustments
     else if (command.includes('increase volume') || command.includes('volume up') || command.includes('louder')) {
@@ -428,32 +241,20 @@ export const VoiceControl: React.FC = () => {
       setVolume(newVolume);
       speak(`Volume set to ${newVolume} percent`);
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     } else if (command.includes('decrease volume') || command.includes('volume down') || command.includes('quieter')) {
       const newVolume = Math.max(0, volume - 10);
       setVolume(newVolume);
       speak(`Volume set to ${newVolume} percent`);
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Navigation Panel
     else if (command.includes('open navigation') || command.includes('show navigation') || command.includes('navigation panel')) {
       setCurrentPanel('navigation');
       speak('Opening navigation panel');
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Navigation destinations with fuzzy matching
     else if (
@@ -492,11 +293,7 @@ export const VoiceControl: React.FC = () => {
         navigateTo(foundDestination);
         speak(`Navigating to ${foundDestination}`);
         commandRecognized = true;
-        addCommand('voice', command);
-        setTimeout(() => {
-          closeOverlayTemporarily();
-          setTimeout(() => reopenListening(), 500);
-        }, 800);
+        setTimeout(() => closeOverlay(), 800);
       }
     }
     // Phone/Contacts Panel
@@ -504,11 +301,7 @@ export const VoiceControl: React.FC = () => {
       setCurrentPanel('phone');
       speak('Opening contacts panel');
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Call commands
     else if (command.includes('call')) {
@@ -520,41 +313,25 @@ export const VoiceControl: React.FC = () => {
         callContact(properName);
         speak(`Calling ${properName}`);
         commandRecognized = true;
-        addCommand('voice', command);
-        setTimeout(() => {
-          closeOverlayTemporarily();
-          setTimeout(() => reopenListening(), 500);
-        }, 800);
+        setTimeout(() => closeOverlay(), 800);
       }
     } else if (command.includes('answer') || command.includes('pick up') || command.includes('take call')) {
       answerCall();
       speak('Call answered');
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     } else if (command.includes('reject') || command.includes('decline') || command.includes('hang up')) {
       rejectCall();
       speak('Call rejected');
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Climate Control Panel
     else if (command.includes('climate control') || command.includes('open climate') || command.includes('adjust climate')) {
       setCurrentPanel('climate');
       speak('Opening climate control panel');
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // AC commands - fixed logic
     else if (command.includes('turn on ac') || command.includes('air conditioning on') || command.includes('ac on')) {
@@ -566,11 +343,7 @@ export const VoiceControl: React.FC = () => {
         speak('Air conditioning is already on');
       }
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     } else if (command.includes('turn off ac') || command.includes('air conditioning off') || command.includes('ac off')) {
       setCurrentPanel('climate');
       if (isACOn) {
@@ -580,11 +353,7 @@ export const VoiceControl: React.FC = () => {
         speak('Air conditioning is already off');
       }
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Fan speed control
     else if (command.includes('set fan speed') || command.includes('fan speed')) {
@@ -596,11 +365,7 @@ export const VoiceControl: React.FC = () => {
           setFanSpeed(speed);
           speak(`Fan speed set to level ${speed}`);
           commandRecognized = true;
-          addCommand('voice', command);
-          setTimeout(() => {
-            closeOverlayTemporarily();
-            setTimeout(() => reopenListening(), 500);
-          }, 800);
+          setTimeout(() => closeOverlay(), 800);
         }
       }
     }
@@ -613,11 +378,7 @@ export const VoiceControl: React.FC = () => {
         setTemperature(temp);
         speak(`Temperature set to ${temp} degrees`);
         commandRecognized = true;
-        addCommand('voice', command);
-        setTimeout(() => {
-          closeOverlayTemporarily();
-          setTimeout(() => reopenListening(), 500);
-        }, 800);
+        setTimeout(() => closeOverlay(), 800);
       }
     }
     // Dashboard - enhanced matching with state awareness
@@ -632,22 +393,14 @@ export const VoiceControl: React.FC = () => {
       setCurrentPanel('dashboard');
       speak('Returning to dashboard');
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     // Vehicle info
     else if (command.includes('vehicle info') || command.includes('car info') || command.includes('vehicle panel')) {
       setCurrentPanel('vehicle');
       speak('Opening vehicle information');
       commandRecognized = true;
-      addCommand('voice', command);
-      setTimeout(() => {
-        closeOverlayTemporarily();
-        setTimeout(() => reopenListening(), 500);
-      }, 800);
+      setTimeout(() => closeOverlay(), 800);
     }
     
     // If no command was recognized
@@ -658,13 +411,11 @@ export const VoiceControl: React.FC = () => {
       if (confidence >= 0.5) {
         setSuggestions([`"${command}"`]);
         speak(`Did you mean ${command}?`);
-        // Stay in listening mode for yes/no response
       } else {
         speak("Sorry, I didn't catch that. Please try again.");
         setTimeout(() => {
           setRecognizedText('');
         }, 2000);
-        // Stay in listening mode
       }
     } else {
       // Command executed successfully
@@ -692,12 +443,11 @@ export const VoiceControl: React.FC = () => {
   return (
     <VoiceRecognitionOverlay
       isActive={voiceOverlayActive}
-      onClose={toggleMicManually}
+      onClose={closeOverlay}
       recognizedText={recognizedText}
       isListening={isListening}
       suggestions={suggestions}
       onSelectSuggestion={handleSuggestionSelect}
-      isClosing={isClosing}
     />
   );
 };

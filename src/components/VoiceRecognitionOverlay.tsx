@@ -9,7 +9,6 @@ interface VoiceRecognitionOverlayProps {
   isListening: boolean;
   suggestions?: string[];
   onSelectSuggestion?: (suggestion: string) => void;
-  isClosing?: boolean;
 }
 
 export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = ({
@@ -19,7 +18,6 @@ export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = (
   isListening,
   suggestions = [],
   onSelectSuggestion,
-  isClosing = false,
 }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -34,18 +32,15 @@ export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = (
   if (!isActive) return null;
 
   return (
-    <div className={`fixed inset-0 z-50 bg-background/95 backdrop-blur-sm transition-opacity duration-500 ease-in-out ${
-      isClosing ? 'opacity-0' : 'opacity-100 animate-fade-in'
-    }`}>
+    <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm animate-fade-in">
       <div className="flex flex-col items-center justify-center h-full p-8">
         <Button
           variant="ghost"
           size="icon"
           onClick={onClose}
-          className="absolute top-4 right-4 hover:bg-destructive/20"
-          title="Turn off microphone"
+          className="absolute top-4 right-4"
         >
-          <X className="w-6 h-6 text-destructive" />
+          <X className="w-6 h-6" />
         </Button>
 
         <div className="flex flex-col items-center gap-8 max-w-2xl w-full">
@@ -74,13 +69,11 @@ export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = (
           </div>
 
           {/* Real-time Voice-to-Text Display */}
-          <div className="w-full glass rounded-2xl p-6 min-h-[80px] flex items-center justify-center animate-fade-in">
-            {recognizedText ? (
+          {recognizedText && (
+            <div className="w-full glass rounded-2xl p-6 animate-fade-in">
               <p className="text-lg text-center font-medium">{recognizedText}</p>
-            ) : (
-              <p className="text-muted-foreground text-center italic">Speak now...</p>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Command Suggestions */}
           {showSuggestions && suggestions.length > 0 && (
