@@ -73,12 +73,12 @@ It is designed as a multi-panel dashboard simulating real-world infotainment env
 ---
 
 ## 🌐 Live Demo
-https://your-live-project-link
+https://auto-pilot-pilot.lovable.app
 
 ---
 
 ## 📂 GitHub Repository
-https://github.com/your-username/repo-name
+https://Thrisha212005/smart-infotainment-ui
 
 ---
 
