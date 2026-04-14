@@ -9,7 +9,8 @@ export const MusicPanel: React.FC = () => {
     currentSong, 
     isPlaying, 
     volume, 
-    progress, 
+    progress,
+    duration,
     togglePlay, 
     nextSong, 
     previousSong,
@@ -23,15 +24,15 @@ export const MusicPanel: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const currentTime = (progress / 100) * currentSong.duration;
-  const remainingTime = currentSong.duration - currentTime;
+  const currentTime = duration ? (progress / 100) * duration : 0;
+  const remainingTime = duration ? duration - currentTime : 0;
 
   return (
     <div className="glass rounded-2xl p-8 h-full flex flex-col">
       {/* Album Art */}
       <div className="mb-8 mx-auto">
         <div className="w-64 h-64 gradient-music rounded-3xl flex items-center justify-center shadow-2xl">
-          <div className="text-center text-white">
+          <div className="text-center text-primary-foreground">
             <div className="text-6xl mb-2">🎵</div>
             <div className="text-sm opacity-80">Now Playing</div>
           </div>
@@ -49,7 +50,7 @@ export const MusicPanel: React.FC = () => {
         <Slider 
           value={[progress]} 
           max={100}
-          step={1}
+          step={0.1}
           onValueChange={([value]) => setProgress(value)}
           className="mb-3"
         />
@@ -76,9 +77,9 @@ export const MusicPanel: React.FC = () => {
           className="w-20 h-20 rounded-full gradient-music hover:scale-105 transition-transform shadow-lg"
         >
           {isPlaying ? (
-            <Pause className="w-8 h-8 text-white" fill="white" />
+            <Pause className="w-8 h-8 text-primary-foreground" fill="currentColor" />
           ) : (
-            <Play className="w-8 h-8 text-white" fill="white" />
+            <Play className="w-8 h-8 text-primary-foreground" fill="currentColor" />
           )}
         </Button>
         

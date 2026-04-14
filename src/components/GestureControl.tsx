@@ -18,7 +18,12 @@ export const GestureControl: React.FC = () => {
   const gestureConfirmationRef = useRef<{ gesture: string; count: number }>({ gesture: '', count: 0 });
   const [volumeControlActive, setVolumeControlActive] = useState(false);
   const micActivationGestureRef = useRef<{ detected: boolean; startTime: number }>({ detected: false, startTime: 0 });
-  const handPositionHistoryRef = useRef<{ x: number; timestamp: number }[]>([]);
+  const isPlayingRef = useRef(isPlaying);
+
+  // Keep ref in sync
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   useEffect(() => {
     if (gestureEnabled) {
@@ -45,7 +50,7 @@ export const GestureControl: React.FC = () => {
           delegate: "GPU"
         },
         runningMode: "VIDEO",
-        numHands: 2
+        numHands: 1
       });
       
       gestureRecognizerRef.current = recognizer;
@@ -80,6 +85,8 @@ export const GestureControl: React.FC = () => {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    let isPinchDetected = false;
+
     if (results.landmarks && results.landmarks.length > 0) {
       const drawingUtils = new DrawingUtils(ctx);
       
@@ -93,121 +100,66 @@ export const GestureControl: React.FC = () => {
           lineWidth: 1,
           radius: 3
         });
+      }
 
-        // Track hand position for swipe detection (using wrist landmark)
-        const wrist = landmarks[0];
-        if (wrist) {
-          const currentTime = Date.now();
-          const handX = wrist.x;
-          
-          // Add current position to history
-          handPositionHistoryRef.current.push({ x: handX, timestamp: currentTime });
-          
-          // Keep only last 15 frames (about 0.5 seconds at 30fps)
-          if (handPositionHistoryRef.current.length > 15) {
-            handPositionHistoryRef.current.shift();
-          }
-          
-          // Detect swipe if we have enough history
-          if (handPositionHistoryRef.current.length >= 10) {
-            const firstPos = handPositionHistoryRef.current[0];
-            const lastPos = handPositionHistoryRef.current[handPositionHistoryRef.current.length - 1];
-            const deltaX = lastPos.x - firstPos.x;
-            const deltaTime = lastPos.timestamp - firstPos.timestamp;
-            
-            // Swipe detection threshold (movement > 0.15 across screen in < 600ms)
-            if (Math.abs(deltaX) > 0.15 && deltaTime < 600) {
-              const now = Date.now();
-              // Cooldown to prevent double triggering
-              if (now - lastGestureTimeRef.current > 1000) {
-                if (deltaX > 0) {
-                  // Swipe right - Next song
-                  if (!isPlaying) togglePlay();
-                  nextSong();
-                  speak('Playing next song');
-                  addCommand('gesture', 'Swipe Right → Next Song');
-                  toast({
-                    title: "👋 Swipe Right",
-                    description: "Next Song ⏭️",
-                    duration: 2000,
-                  });
-                  setLastInputType('gesture');
-                  lastGestureTimeRef.current = now;
-                  handPositionHistoryRef.current = [];
-                } else {
-                  // Swipe left - Previous song
-                  if (!isPlaying) togglePlay();
-                  previousSong();
-                  speak('Playing previous song');
-                  addCommand('gesture', 'Swipe Left → Previous Song');
-                  toast({
-                    title: "👋 Swipe Left",
-                    description: "Previous Song ⏮️",
-                    duration: 2000,
-                  });
-                  setLastInputType('gesture');
-                  lastGestureTimeRef.current = now;
-                  handPositionHistoryRef.current = [];
-                }
-              }
-            }
-          }
-        }
-
-        // Thumb-index volume control
-        const thumbTip = landmarks[4];
-        const indexTip = landmarks[8];
+      // Check for pinch gesture via detected gesture name
+      if (results.gestures && results.gestures.length > 0) {
+        const detectedGesture = results.gestures[0][0].categoryName;
         
-        if (thumbTip && indexTip) {
-          const distance = Math.sqrt(
-            Math.pow((thumbTip.x - indexTip.x) * canvas.width, 2) +
-            Math.pow((thumbTip.y - indexTip.y) * canvas.height, 2)
-          );
-
-          // Draw line between fingertips
-          ctx.beginPath();
-          ctx.moveTo(thumbTip.x * canvas.width, thumbTip.y * canvas.height);
-          ctx.lineTo(indexTip.x * canvas.width, indexTip.y * canvas.height);
-          ctx.strokeStyle = '#FFD700';
-          ctx.lineWidth = 3;
-          ctx.stroke();
-
-          // Calculate volume (distance range: 20-200 pixels)
-          const minDistance = 20;
-          const maxDistance = 200;
-          const normalizedDistance = Math.max(minDistance, Math.min(maxDistance, distance));
-          const volumeLevel = Math.round(((normalizedDistance - minDistance) / (maxDistance - minDistance)) * 100);
-
-          // Check if fingers are in pinching position for volume control
-          const isPinchingGesture = distance < 150; // Only activate when fingers are relatively close
+        // Only do volume control for pinch-like gestures (None with close thumb-index)
+        // We'll check thumb-index distance only when no other gesture is strongly detected
+        if (detectedGesture === 'None' || detectedGesture === '') {
+          const landmarks = results.landmarks[0];
+          const thumbTip = landmarks[4];
+          const indexTip = landmarks[8];
           
-          if (isPinchingGesture) {
-            setVolumeControlActive(true);
-            setVolume(volumeLevel);
-            
-            // Display volume indicator
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(10, 10, 200, 60);
-            ctx.fillStyle = '#FFFFFF';
-            ctx.font = '20px Arial';
-            ctx.fillText(`Volume: ${volumeLevel}%`, 20, 35);
-            
-            // Volume bar
-            ctx.fillStyle = '#FFD700';
-            ctx.fillRect(20, 45, (volumeLevel / 100) * 180, 15);
-          } else {
-            setVolumeControlActive(false);
+          if (thumbTip && indexTip) {
+            const distance = Math.sqrt(
+              Math.pow((thumbTip.x - indexTip.x) * canvas.width, 2) +
+              Math.pow((thumbTip.y - indexTip.y) * canvas.height, 2)
+            );
+
+            // Only activate pinch volume when fingers are very close (< 80px)
+            if (distance < 80) {
+              isPinchDetected = true;
+              setVolumeControlActive(true);
+
+              // Draw line between fingertips
+              ctx.beginPath();
+              ctx.moveTo(thumbTip.x * canvas.width, thumbTip.y * canvas.height);
+              ctx.lineTo(indexTip.x * canvas.width, indexTip.y * canvas.height);
+              ctx.strokeStyle = '#FFD700';
+              ctx.lineWidth = 3;
+              ctx.stroke();
+
+              const minDist = 10;
+              const maxDist = 80;
+              const normalized = Math.max(minDist, Math.min(maxDist, distance));
+              const volumeLevel = Math.round(((normalized - minDist) / (maxDist - minDist)) * 100);
+              setVolume(volumeLevel);
+
+              // Volume overlay
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+              ctx.fillRect(10, 10, 200, 60);
+              ctx.fillStyle = '#FFFFFF';
+              ctx.font = '20px Arial';
+              ctx.fillText(`Volume: ${volumeLevel}%`, 20, 35);
+              ctx.fillStyle = '#FFD700';
+              ctx.fillRect(20, 45, (volumeLevel / 100) * 180, 15);
+            }
           }
         }
       }
     }
 
-    // Process other gestures only when volume control is not active
-    if (results.gestures && results.gestures.length > 0 && !volumeControlActive) {
+    if (!isPinchDetected) {
+      setVolumeControlActive(false);
+    }
+
+    // Process named gestures only when pinch is not active
+    if (results.gestures && results.gestures.length > 0 && !isPinchDetected) {
       const detectedGesture = results.gestures[0][0].categoryName;
       
-      // Check for mic activation gesture (Thumb_Up + Index_Up = crossed fingers approximation)
-      // MediaPipe doesn't have "crossed fingers" so we'll use a combination or alternative
       if (detectedGesture === 'Victory') {
         handleMicActivationGesture();
       } else {
@@ -222,36 +174,32 @@ export const GestureControl: React.FC = () => {
     const now = Date.now();
     
     if (!micActivationGestureRef.current.detected) {
-      // Start tracking the gesture
       micActivationGestureRef.current = { detected: true, startTime: now };
     } else if (now - micActivationGestureRef.current.startTime >= 500) {
-      // Gesture held for 0.5 seconds, activate mic
       if (!voiceEnabled) {
         setVoiceEnabled(true);
         setVoiceOverlayActive(true);
         speak('Voice recognition activated');
-        addCommand('gesture', 'Mic Activation (Victory gesture held)');
+        addCommand('gesture', '✌️ Victory Hold → Mic Activated');
         toast({
           title: "🎤 Mic Activated",
           description: "Voice recognition enabled",
           duration: 2000,
         });
       }
-      // Reset after activation
       micActivationGestureRef.current = { detected: false, startTime: 0 };
     }
   };
 
   const processDetectedGesture = (gesture: string) => {
-    // Reset mic activation gesture if different gesture detected
     micActivationGestureRef.current = { detected: false, startTime: 0 };
-    // Filter out "None" gestures
+    
     if (gesture === 'None' || !gesture) {
       gestureConfirmationRef.current = { gesture: '', count: 0 };
       return;
     }
 
-    // 3-frame confirmation for accuracy
+    // 3-frame confirmation
     if (gestureConfirmationRef.current.gesture === gesture) {
       gestureConfirmationRef.current.count++;
     } else {
@@ -259,16 +207,11 @@ export const GestureControl: React.FC = () => {
       return;
     }
 
-    if (gestureConfirmationRef.current.count < 3) {
-      return;
-    }
+    if (gestureConfirmationRef.current.count < 3) return;
 
     const now = Date.now();
-    
-    // Cooldown to prevent double triggering (0.5s)
-    if (gesture === lastGestureRef.current && now - lastGestureTimeRef.current < 500) {
-      return;
-    }
+    // 800ms cooldown
+    if (gesture === lastGestureRef.current && now - lastGestureTimeRef.current < 800) return;
 
     lastGestureRef.current = gesture;
     lastGestureTimeRef.current = now;
@@ -276,83 +219,61 @@ export const GestureControl: React.FC = () => {
     setLastInputType('gesture');
 
     console.log('✋ Gesture detected:', gesture);
-    addCommand('gesture', `${gesture}`);
 
-    let actionTaken = false;
     let actionMessage = '';
 
     switch (gesture) {
       case 'Thumb_Up':
-        // Open Music Panel
         setCurrentPanel('music');
         speak('Opening music player');
-        actionMessage = 'Opening Music Panel';
-        actionTaken = true;
+        actionMessage = '👍 Opening Music Panel';
+        addCommand('gesture', '👍 Thumb Up → Music Panel');
         break;
         
-      case 'Thumb_Down':
-        // Dynamic Play/Pause Toggle
+      case 'Thumb_Down': {
+        const playing = isPlayingRef.current;
         togglePlay();
-        if (isPlaying) {
+        if (playing) {
           speak('Music paused');
-          actionMessage = '⏸️ Music Paused';
+          actionMessage = '👎 ⏸️ Music Paused';
+          addCommand('gesture', '👎 Thumb Down → Paused');
         } else {
           speak('Playing music');
-          actionMessage = '▶️ Music Playing';
+          actionMessage = '👎 ▶️ Music Playing';
+          addCommand('gesture', '👎 Thumb Down → Playing');
         }
-        actionTaken = true;
         break;
-      
+      }
         
       case 'Open_Palm':
-        // Return to Dashboard
-        setCurrentPanel('dashboard');
-        speak('Returning to dashboard');
-        actionMessage = 'Back to Dashboard ✋';
-        actionTaken = true;
-        break;
-        
-      case 'ILoveYou':
-        // Open Contacts/Phone Panel (🤙 shaka/call me gesture)
-        setCurrentPanel('phone');
-        speak('Opening contacts');
-        actionMessage = 'Opening Contacts 🤙';
-        actionTaken = true;
+        nextSong();
+        speak('Next song');
+        actionMessage = '🖐️ Next Song';
+        addCommand('gesture', '🖐️ Open Palm → Next Song');
         break;
         
       case 'Closed_Fist':
-        // Open Vehicle Info (fist gesture ✊)
-        setCurrentPanel('vehicle');
-        speak('Opening vehicle information');
-        actionMessage = 'Vehicle Info ✊';
-        actionTaken = true;
+        previousSong();
+        speak('Previous song');
+        actionMessage = '✊ Previous Song';
+        addCommand('gesture', '✊ Closed Fist → Previous Song');
         break;
-        
+      
       case 'Pointing_Up':
-        // Open Navigation Panel
-        setCurrentPanel('navigation');
-        speak('Opening navigation panel');
-        actionMessage = 'Opening Navigation ☝️';
-        actionTaken = true;
-        break;
-        
-      case 'Pointing_Down':
-        // Open Climate Control
-        setCurrentPanel('climate');
-        speak('Opening climate control');
-        actionMessage = 'Climate Control 👇';
-        actionTaken = true;
+        setCurrentPanel('dashboard');
+        speak('Opening dashboard');
+        actionMessage = '☝️ Dashboard';
+        addCommand('gesture', '☝️ Pointing Up → Dashboard');
         break;
         
       default:
-        console.log('⚠️ Unknown gesture:', gesture);
-        actionMessage = 'Unknown Gesture';
-        break;
+        console.log('⚠️ Unmapped gesture:', gesture);
+        return;
     }
 
-    if (actionTaken) {
+    if (actionMessage) {
       toast({
-        title: "👋 Gesture Recognized",
+        title: "✋ Gesture Detected",
         description: actionMessage,
         duration: 2000,
       });
@@ -399,7 +320,7 @@ export const GestureControl: React.FC = () => {
     <div className="glass rounded-2xl p-6 h-full relative overflow-hidden">
       <div className="absolute top-4 left-4 z-10 glass px-3 py-1 rounded-full">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          <div className="w-2 h-2 bg-destructive rounded-full animate-pulse" />
           <span className="text-xs font-medium">
             {detectionActive ? 'AI DETECTING' : 'CAMERA ACTIVE'}
           </span>
@@ -409,9 +330,8 @@ export const GestureControl: React.FC = () => {
       <div className="absolute bottom-4 left-4 right-4 z-10 glass px-4 py-3 rounded-xl">
         <div className="text-xs text-muted-foreground text-center space-y-1">
           <p className="font-semibold">Gesture Commands:</p>
-          <p>👍 Music | 👎 Play/Pause | 👉 Swipe Right: Next | 👈 Swipe Left: Previous</p>
-          <p>☝️ Navigation | 👇 Climate | ✋ Dashboard | 🤙 Contacts | ✊ Vehicle</p>
-          <p>🤏 Pinch (Thumb-Index): Volume Control | ✌️ Hold 0.5s: Activate Mic</p>
+          <p>👍 Music | 👎 Play/Pause | 🖐️ Next Song | ✊ Previous Song</p>
+          <p>🤏 Pinch: Volume | ☝️ Dashboard | ✌️ Hold 0.5s: Mic</p>
         </div>
       </div>
       
