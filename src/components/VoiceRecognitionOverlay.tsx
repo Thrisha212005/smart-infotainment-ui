@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Mic, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -8,7 +8,6 @@ interface VoiceRecognitionOverlayProps {
   recognizedText: string;
   isListening: boolean;
   suggestions?: string[];
-  onSelectSuggestion?: (suggestion: string) => void;
 }
 
 export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = ({
@@ -17,18 +16,7 @@ export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = (
   recognizedText,
   isListening,
   suggestions = [],
-  onSelectSuggestion,
 }) => {
-  const [showSuggestions, setShowSuggestions] = useState(false);
-
-  useEffect(() => {
-    if (suggestions.length > 0) {
-      setShowSuggestions(true);
-    } else {
-      setShowSuggestions(false);
-    }
-  }, [suggestions]);
-
   if (!isActive) return null;
 
   return (
@@ -58,7 +46,7 @@ export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = (
             )}
           </div>
 
-          {/* Status Text */}
+          {/* Status */}
           <div className="text-center">
             <h2 className="text-2xl font-bold mb-2">
               {isListening ? 'Listening...' : 'Voice Recognition'}
@@ -68,32 +56,30 @@ export const VoiceRecognitionOverlay: React.FC<VoiceRecognitionOverlayProps> = (
             </p>
           </div>
 
-          {/* Real-time Voice-to-Text Display */}
+          {/* Real-time text */}
           {recognizedText && (
             <div className="w-full glass rounded-2xl p-6 animate-fade-in">
               <p className="text-lg text-center font-medium">{recognizedText}</p>
             </div>
           )}
 
-          {/* Command Suggestions */}
-          {showSuggestions && suggestions.length > 0 && (
-            <div className="w-full glass rounded-2xl p-6 space-y-4 animate-fade-in">
+          {/* Confirmation prompt - voice only, no buttons */}
+          {suggestions.length > 0 && (
+            <div className="w-full glass rounded-2xl p-6 space-y-3 animate-fade-in">
               <p className="text-center text-lg text-muted-foreground">Did you mean:</p>
-              <p className="text-center text-xl font-medium italic">
-                {suggestions[0]}
-              </p>
-              <p className="text-center text-sm text-muted-foreground mt-4">
-                Say "Yes" to confirm or "No" to try again
+              <p className="text-center text-xl font-medium italic">"{suggestions[0]}"</p>
+              <p className="text-center text-sm text-muted-foreground">
+                Say <span className="font-semibold text-foreground">"Yes"</span> to confirm or <span className="font-semibold text-foreground">"No"</span> to try again
               </p>
             </div>
           )}
 
-          {/* Voice Commands Hint */}
-          {!recognizedText && !showSuggestions && (
+          {/* Hints */}
+          {!recognizedText && suggestions.length === 0 && (
             <div className="text-center text-sm text-muted-foreground max-w-md">
               <p>Try saying:</p>
               <p className="mt-2 opacity-70">
-                "Play music" • "Navigate to home" • "Set fan speed to 3" • "List all commands"
+                "Play music" · "Navigate to home" · "Set fan speed to 3" · "List all commands"
               </p>
             </div>
           )}
